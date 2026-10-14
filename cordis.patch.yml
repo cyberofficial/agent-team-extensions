@@ -1,0 +1,38 @@
+# Agent Teams (clone) profile layer — manual enabler.
+# Cloned from @deepseek-ai/dsh-experimental-agent-team-profile v0.2.0-rc.2
+# (cordis.patch.yml). Apply after dsh-base so these replacements keep direct
+# delegation and coordination on the clone Team tools.
+#
+# Enable EITHER the original Agent Teams bundle OR this clone — not both —
+# otherwise two sets of team tools compete in one session.
+
+- id: tool-subagent-control
+  disabled: true
+
+- id: tool-subagent-list-agents
+  disabled: true
+
+- id: tool-subagent
+  disabled: true
+
+- id: tool-subagent-fork
+  disabled: true
+
+- insert:
+    - id: agent-team-clone
+      name: dsh-agent-team-clone-core
+      config:
+        maxMembers: 8
+        maxTasks: 256
+        maxPendingMessagesPerMember: 64
+        maxMessageBytes: 65536
+        disposalTimeoutMs: 5000
+
+    - id: tool-agent-team-clone
+      name: dsh-agent-team-clone-tools
+      config:
+        freshProvider: spawn
+        forkProvider: fork
+
+    - id: ui-agent-team-clone
+      name: dsh-agent-team-clone-ui
