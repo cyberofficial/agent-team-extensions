@@ -538,7 +538,7 @@ var TeamRoster = class {
 	* @param childIds - selected roster child ids.
 	*/
 	async stopTeammates(root, childIds) {
-		await this.lifecycle.withTimeout(this.ctx.subagents.drainContinuableChildren(root, childIds));
+		await this.lifecycle.withTimeout(this.ctx.subagents.drainChildren(root, childIds));
 	}
 	/** Perform one creation admitted before the Team runtime disposal cutoff. */
 	async spawnAdmitted(caller, request) {
@@ -570,7 +570,7 @@ var TeamRoster = class {
 		});
 		let started;
 		try {
-			started = await this.ctx.subagents.startContinuable({
+			started = await this.ctx.subagents.startActivation({
 				childId,
 				provider: request.provider,
 				label: description,
