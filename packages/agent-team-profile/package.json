@@ -31,9 +31,9 @@
     }
   },
   "dependencies": {
-    "dsh-agent-team-clone-core": "0.2.0-rc.2",
-    "dsh-agent-team-clone-ui": "0.2.0-rc.2",
-    "dsh-agent-team-clone-tools": "0.2.0-rc.2"
+    "dsh-agent-team-clone-core": "file:../agent-team",
+    "dsh-agent-team-clone-ui": "file:../client-ui-agent-team",
+    "dsh-agent-team-clone-tools": "file:../tool-agent-team"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4"
