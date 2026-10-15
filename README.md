@@ -18,67 +18,85 @@ files are kept in each package.
 | `packages/agent-team/` | `@deepseek-ai/dsh-experimental-agent-team` | `dsh-agent-team-whaleforce-core` | `agent-team-whaleforce` |
 | `packages/tool-agent-team/` | `@deepseek-ai/dsh-experimental-tool-agent-team` | `dsh-agent-team-whaleforce-tools` | `tool-agent-team-whaleforce` |
 | `packages/client-ui-agent-team/` | `@deepseek-ai/dsh-experimental-client-ui-agent-team` | `dsh-agent-team-whaleforce-ui` | `ui-agent-team-whaleforce` |
+| `packages/client-ui-agent-team-sessions/` | (new package, no original) | `dsh-agent-team-whaleforce-sessions` | `ui-agent-team-whaleforce-sessions` |
 | `packages/agent-team-profile/` | `@deepseek-ai/dsh-experimental-agent-team-profile` | `dsh-agent-team-whaleforce-profile` | (bundle) |
 
 ## What each package does
 
-- **agent-team (core)** — implicit-root Agent Teams roster, durable peer mailbox,
+- **agent-team (core)** - implicit-root Agent Teams roster, durable peer mailbox,
   and shared task DAG. Registers the ctx service under `ctx.agentTeamsClone`
   (original: `ctx.agentTeams`).
-- **tool-agent-team (tools)** — the model-facing team tools, scoped over the core
+- **tool-agent-team (tools)** - the model-facing team tools, scoped over the core
   service. Every tool is prefixed `whaleforce_`:
   `whaleforce_spawn_teammate`, `whaleforce_send_message`, `whaleforce_list_agents`,
   `whaleforce_wait_agent`, `whaleforce_interrupt_agent`, `whaleforce_delete_teammate`,
   `whaleforce_team_task_create`,
-  `whaleforce_team_task_list`, `whaleforce_team_task_get`, `whaleforce_team_task_update`
+  `whaleforce_team_task_list`, `whaleforce_team_task_get`, `whaleforce_team_task_update`,
+  `whaleforce_set_teammate_model`
   (final list: see Verification below).
   `whaleforce_delete_teammate` (Team Lead only) durably removes one settled teammate:
   the deleted teammate's name is consumed forever and cannot be reused, the roster
   slot frees for new members, and the deleted teammate's in-progress tasks return
   to pending.
-- **client-ui-agent-team (ui)** — the Web Team Panel: roster, task board, and
+  `whaleforce_set_teammate_model` (Team Lead only) switches a teammate's model with
+  next-turn semantics, and accepts the swap for inactive teammates too (applied at
+  their next activation); it also accepts a spawn-time `model` on
+  `whaleforce_spawn_teammate` (see the tool package README for details).
+- **client-ui-agent-team (ui)** - the Web Team Panel: roster, task board, and
   teammate navigation.
-- **agent-team-profile (bundle)** — the one-row bundle that wires the three
-  components above (its `cordis.patch.yml` inserts the three plugin rows and
-  disables the direct-subagent tools, exactly like the original profile).
+- **client-ui-agent-team-sessions (sessions)** - the Web grouped subagent-session
+  catalog (Running, Idle, Completed, Error) that replaces the official
+  `ui-subagent` header trigger and re-registers the sidebar chat.
+- **agent-team-profile (bundle)** - the one-row bundle that wires the components
+  above (its `cordis.patch.yml` inserts the four plugin rows and disables the
+  direct-subagent tools and the official sessions UI row).
 
 ## Enabling
 
 WhaleForce is NOT enabled by anything on this machine. To enable it in a profile
 (e.g. the `web` profile at `~/.dsh/profiles/web`, which is a pnpm workspace):
 
-1. Register the three plain packages with the profile. From `D:\github\deepseek-harness`,
-   with its `.shims` pnpm on PATH, use the BUILT CLI (`node apps\cli\lib\bin.js`) —
+1. Register the plain packages with the profile. From `D:\github\deepseek-harness`,
+   with its `.shims` pnpm on PATH, use the BUILT CLI (`node apps\cli\lib\bin.js`) -
    not `pnpm dsh`, which boots the tsx source path and resolves `@deepseek-ai`
    packages differently from the running server:
    `node apps\cli\lib\bin.js plugin --profile web add "link:D:/github/dsh-plugins/dsh-plugin-WhaleForce/packages/agent-team"`
-   (and likewise `packages\tool-agent-team` and `packages\client-ui-agent-team`).
+   (and likewise `packages\tool-agent-team`, `packages\client-ui-agent-team`, and
+   `packages\client-ui-agent-team-sessions`).
    The profile bundle itself goes in through the Plugins page's Add plugin dialog.
-2. Add the three insert rows from this folder's `cordis.patch.yml` to the
+2. Add the four insert rows from this folder's `cordis.patch.yml` to the
    profile's `cordis.patch.yml` (or depend on `dsh-agent-team-whaleforce-profile`,
    whose own patch does the same), then restart the profile.
-3. Disable the original Agent Teams bundle first — original and WhaleForce define
+3. Disable the original Agent Teams bundle first - original and WhaleForce define
    parallel team machinery, and the patch layer disables the direct-subagent
    tools for both.
 
 ## Differences from the original (complete list by design)
 
-- npm package names: `dsh-agent-team-whaleforce-{core,tools,ui,profile}`.
+- npm package names: `dsh-agent-team-whaleforce-{core,tools,ui,profile,sessions}`
+  (the sessions package is new and has no original).
 - Cordis plugin ids: `agent-team-whaleforce`, `tool-agent-team-whaleforce`,
-  `ui-agent-team-whaleforce`.
+  `ui-agent-team-whaleforce`, `ui-agent-team-whaleforce-sessions`.
 - ctx service property: `ctx.agentTeamsClone` (original `ctx.agentTeams`).
 - Model-facing tool names: `whaleforce_` prefix (original names unprefixed).
 - Functional addition: `whaleforce_delete_teammate` (durable teammate deletion,
   Team Lead only) ports the deletion feature recovered from the reference
   `agent-team-extensions` commit `1bd198d` into the built libs.
+- Functional addition (implement map WHALEFORCE-sessions-ui-map): the
+  `dsh-agent-team-whaleforce-sessions` package (new, no original) adds the grouped
+  subagent-session catalog with Running, Idle, Completed, and Error groups, and
+  the swap layer disables the official `ui-subagent` row and inserts
+  `ui-agent-team-whaleforce-sessions` in both `cordis.patch.yml` files.
 - `package.json`: `private: true`, `publishConfig` and upstream `repository`
   dropped; version kept at `0.2.0-rc.2` for parity traceability.
-- Everything else — code paths, behavior, config defaults, locale content,
-  MIT LICENSE texts — is unchanged from the original.
+- Everything else - code paths, behavior, config defaults, locale content,
+  MIT LICENSE texts - is unchanged from the original (except that the
+  `dsh-agent-team-whaleforce-sessions` package listed above is new and has no
+  original partner).
 
 ## Verification
 
-Independent verification (task-4, read-only auditor): **PASS — 0 FAIL, 3 WARN, 1 INFO**.
+Independent verification (task-4, read-only auditor): **PASS - 0 FAIL, 3 WARN, 1 INFO**.
 Full log: `~/aihackerman/projects/dsh-agent-team-whaleforce-2026-10-14/notes/verify-notes.md`
 
 - File parity: 43/43 + 9/9 + 14/14 + 11/11, zero missing/extra per package.

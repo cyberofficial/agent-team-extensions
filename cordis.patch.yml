@@ -1,9 +1,9 @@
-# Agent Teams (WhaleForce) profile layer — manual enabler.
+# Agent Teams (WhaleForce) profile layer - manual enabler.
 # Cloned from @deepseek-ai/dsh-experimental-agent-team-profile v0.2.0-rc.2
 # (cordis.patch.yml). Apply after dsh-base so these replacements keep direct
 # delegation and coordination on the WhaleForce Team tools.
 #
-# Enable EITHER the original Agent Teams bundle OR this WhaleForce bundle — not both —
+# Enable EITHER the original Agent Teams bundle OR this WhaleForce bundle - not both -
 # otherwise two sets of team tools compete in one session.
 
 - id: tool-subagent-control
@@ -16,6 +16,9 @@
   disabled: true
 
 - id: tool-subagent-fork
+  disabled: true
+
+- id: ui-subagent
   disabled: true
 
 - insert:
@@ -36,3 +39,6 @@
 
     - id: ui-agent-team-whaleforce
       name: dsh-agent-team-whaleforce-ui
+
+    - id: ui-agent-team-whaleforce-sessions
+      name: dsh-agent-team-whaleforce-sessions

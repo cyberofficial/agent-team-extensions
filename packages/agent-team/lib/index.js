@@ -361,6 +361,19 @@ function resolveActiveMember(root, state, rawName) {
 		name
 	};
 }
+/**
+* Test whether one durable model/selection matches one consumed request route,
+* the model-selection projection's retirement comparison: provider, model, and
+* stringified reasoning effort.
+* @param selection - durable data of one model/selection event.
+* @param config - the consumed request's call configuration.
+* @returns whether the request routed through the selection.
+*/
+function sameModelRoute(selection, config) {
+	if (selection === void 0) return false;
+	if (selection.provider !== config.provider || selection.model !== config.model) return false;
+	return selection.reasoningEffort === (config.reasoningEffort === void 0 ? void 0 : String(config.reasoningEffort));
+}
 /** Owns Team identities and the lifecycle of rostered continuable children. */
 var TeamRoster = class {
 	ctx;
@@ -561,10 +574,11 @@ var TeamRoster = class {
 		return { previousStatus, memberId: member.id };
 	}
 	/**
-	* Change one live teammate's model for its next turn.
-	* The installed selection overrides provider, model, and reasoning effort at the next
-	* prompt-assembly boundary, so a step already in flight keeps its current model. The
-	* swap is not retained across a cold resume of the teammate's session.
+	* Change one teammate's model for its next turn, live or inactive.
+	* For a live teammate the installed selection overrides provider, model, and reasoning
+	* effort at the next prompt-assembly boundary, so a step already in flight keeps its
+	* current model. For an inactive teammate the validated selection is appended durably
+	* to the teammate's stored log and installed when it next activates.
 	* @param caller - exact live Lead Agent.
 	* @param targetName - durable teammate name.
 	* @param model - provider-owned model id the teammate will use from its next turn.
@@ -577,8 +591,7 @@ var TeamRoster = class {
 		const target = resolveActiveMember(membership.root, state, targetName);
 		if (target.id === membership.root.id) throw new TeamError("the Team Lead cannot swap its own model through the Team", "TEAM_INVALID_TARGET");
 		const live = this.ctx.agents.get(target.id);
-		if (live === void 0) throw new TeamError(`teammate "${target.name}" is not live`, "TEAM_MEMBER_NOT_FOUND");
-		const provider = (live.session.requestHeader()?.config)?.provider ?? live.options.provider ?? "";
+		const provider = live === void 0 ? await this.coldTeammateProvider(target) : (live.session.requestHeader()?.config)?.provider ?? live.options.provider ?? "";
 		let selection;
 		try {
 			const llm = this.ctx.get("llm");
@@ -594,6 +607,27 @@ var TeamRoster = class {
 		} catch (error) {
 			throw new TeamError(`model "${model}" is unavailable for teammate "${target.name}": ${errorMessage(error)}`, "TEAM_MODEL_UNAVAILABLE");
 		}
+		if (live !== void 0) {
+			this.installLiveSelection(live, selection);
+			return {
+				target: target.name,
+				model: selection.model
+			};
+		}
+		const activated = await this.appendColdSelection(target, selection);
+		if (activated !== void 0) this.installLiveSelection(activated, selection);
+		return {
+			target: target.name,
+			model: selection.model
+		};
+	}
+	/**
+	* Append one durable model/selection event and install the mutable selection
+	* reference for one live teammate.
+	* @param live - exact live teammate Agent.
+	* @param selection - validated selection produced by resolveCallConfig.
+	*/
+	installLiveSelection(live, selection) {
 		live.session.append("model/selection", selection);
 		let installed = this.modelSelections.get(live);
 		if (installed === void 0) {
@@ -605,10 +639,85 @@ var TeamRoster = class {
 			this.modelSelections.set(live, installed);
 		}
 		installed.current = selection;
-		return {
-			target: target.name,
-			model: selection.model
-		};
+	}
+	/**
+	* Resolve the provider route an inactive teammate's stored log last used, for
+	* resolveCallConfig validation that mirrors the live provider fallback: the last
+	* request/header route, else the spawn descriptor's agentProvider, else "".
+	* @param target - resolved durable teammate identity.
+	* @returns the stored provider route, or "" when the log records none.
+	*/
+	async coldTeammateProvider(target) {
+		const stored = await readPersistedSession(this.ctx.sessionPersistence, target.id);
+		for (let index = stored.events.length - 1; index >= 0; index--) {
+			const event = stored.events[index];
+			if (event.type !== "request/header") continue;
+			const provider = event.data.header.config.provider;
+			if (provider.length > 0) return provider;
+		}
+		const descriptor = foldSubagentDescriptor(stored.events.slice(stored.inheritedEventCount));
+		return typeof descriptor?.agentProvider === "string" && descriptor.agentProvider.length > 0 ? descriptor.agentProvider : "";
+	}
+	/**
+	* Claim an inactive teammate's stored-log write handle and append one durable
+	* model/selection event, so the selection installs at its next activation.
+	* @param target - resolved durable teammate identity.
+	* @param selection - validated selection produced by resolveCallConfig.
+	* @returns the teammate Agent when it became live during the swap, else undefined.
+	*/
+	async appendColdSelection(target, selection) {
+		let handle;
+		try {
+			handle = await this.ctx.sessionPersistence.open(target.id, "write");
+		} catch (error) {
+			/* The child became live between the registry check and the write claim: the live runtime owns the log, so fall back to the live install. */
+			const live = this.ctx.agents.get(target.id);
+			if (live !== void 0) return live;
+			throw error;
+		}
+		try {
+			const { events } = await handle.read(0, void 0);
+			await handle.append([{
+				type: "model/selection",
+				seq: events.length,
+				time: Date.now(),
+				data: selection
+			}]);
+		} finally {
+			await handle.close();
+		}
+		return void 0;
+	}
+	/**
+	* Install an unconsumed persisted model/selection on a newly materialized teammate.
+	* Runs synchronously on agent/created and in the service startup sweep, before any
+	* recovery work: the pending selection is the last model/selection in the teammate's
+	* own suffix that no later request/header has consumed with the same route.
+	* @param agent - newly started exact live Agent.
+	*/
+	applyColdSelection(agent) {
+		const membership = this.tryMembership(agent);
+		if (membership === void 0 || membership.role !== "teammate") return;
+		const suffix = agent.session.snapshotEvents(agent.session.inheritedEventCount);
+		let selection;
+		for (const event of suffix) {
+			if (event.type === "model/selection") {
+				selection = event.data;
+				continue;
+			}
+			if (event.type === "request/header" && selection !== void 0 && sameModelRoute(selection, event.data.header.config)) selection = void 0;
+		}
+		if (selection === void 0) return;
+		let installed = this.modelSelections.get(agent);
+		if (installed === void 0) {
+			installed = {
+				current: void 0,
+				assembled: void 0
+			};
+			installModelSelection(agent.ctx, installed);
+			this.modelSelections.set(agent, installed);
+		}
+		installed.current = selection;
 	}
 	/**
 	* Group exact live roster children by their current Lead for runtime teardown.
@@ -1824,6 +1933,10 @@ var TeamService = class extends Service {
 			this.mailbox.observeSessionEvent(session, event);
 		});
 		ctx.on("agent/created", ({ agent }) => {
+			/* Synchronous install: the cold-resume path submits the waiting turn inside the same locked critical section that materializes the child, so the persisted selection must land before any prompt assembly. */
+			this.roster.applyColdSelection(agent);
+		});
+		ctx.on("agent/created", ({ agent }) => {
 			this.scheduleRecovery(agent);
 		});
 		ctx.on("agent/status", ({ agent }) => {
@@ -1840,7 +1953,10 @@ var TeamService = class extends Service {
 				}
 			};
 		}, "agentTeamsClone.runtimeLifecycle()");
-		for (const agent of ctx.agents.list()) this.scheduleRecovery(agent);
+		for (const agent of ctx.agents.list()) {
+			this.roster.applyColdSelection(agent);
+			this.scheduleRecovery(agent);
+		}
 		/* Browser-facing model swap: the shared /api channel has already applied trust and browser auth by the time fetch runs. */
 		ctx.inject(["connection"], (connCtx) => {
 			connCtx.connection.fetch.register({
@@ -1850,9 +1966,17 @@ var TeamService = class extends Service {
 				fetch: async (request) => {
 					const body = await request.json();
 					const child = this.ctx.agents.get(body.sessionId);
-					const parentId = child?.session.header.parentSession;
+					let parentId = child?.session.header.parentSession;
+					if (child === void 0) {
+						/* Cold teammate: resolve its Lead from the stored header so the swap is accepted for the next activation. */
+						try {
+							parentId = (await this.ctx.sessionPersistence.stat(body.sessionId))?.header.parentSession;
+						} catch {
+							parentId = void 0;
+						}
+					}
 					const lead = parentId === void 0 ? void 0 : this.ctx.agents.get(parentId);
-					if (lead === void 0) return Response.json({ error: "teammate session not live" }, { status: 404 });
+					if (lead === void 0) return Response.json({ error: child === void 0 && parentId === void 0 ? "teammate session not live" : "lead session not live" }, { status: 404 });
 					try {
 						const result = await this.setTeammateModel(lead, body.target, body.model);
 						return Response.json(result);
@@ -1993,9 +2117,9 @@ var TeamService = class extends Service {
 		return { target: targetName.trim(), previousStatus: removed.previousStatus, releasedTasks };
 	}
 	/**
-	* Change one live teammate's model for its next turn.
-	* A step already in flight keeps its current model, and the swap is not retained
-	* across a cold resume of the teammate's session.
+	* Change one teammate's model for its next turn, live or inactive.
+	* A step already in flight keeps its current model; an inactive teammate accepts
+	* the selection durably and applies it at its next activation.
 	* @param caller - exact live Lead Agent.
 	* @param targetName - durable teammate name.
 	* @param model - provider-owned model id the teammate will use from its next turn.

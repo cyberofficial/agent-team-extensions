@@ -58,7 +58,7 @@ dsh plugin --profile web add dsh-agent-team-whaleforce-profile
 ## 理解实现
 
 <details>
-<summary>实现细节——点击展开</summary>
+<summary>实现细节--点击展开</summary>
 
 本包的运行时内容是 [`cordis.patch.yml`](cordis.patch.yml)。在 `dsh-base` 之后应用时，patch 会禁用 `tool-subagent-control`、`tool-subagent-list-agents`、`tool-subagent` 和 `tool-subagent-fork`，并以显式 provider 和限制插入 Team 服务、工具和 UI 行。UI 插件的 Host 入口不执行逻辑；只有 Web 客户端加载器会挂载其浏览器入口，因此 headless 无需启动 Web 服务。
 
@@ -66,7 +66,7 @@ dsh plugin --profile web add dsh-agent-team-whaleforce-profile
 |---|---|
 | [`cordis.patch.yml`](cordis.patch.yml) | 叠加在 `dsh-base` 之上的有序 patch |
 | [`src/index.ts`](src/index.ts) | 空模块入口；patch 是运行时内容 |
-| — | 不发布运行时不变式伴生入口；本包只携带静态 profile patch。Team 服务与工具各自持有其可变关系，UI 包持有其可释放的 slot 注册。 |
+| - | 不发布运行时不变式伴生入口；本包只携带静态 profile patch。Team 服务与工具各自持有其可变关系，UI 包持有其可释放的 slot 注册。 |
 
 </details>
 
@@ -75,11 +75,11 @@ dsh plugin --profile web add dsh-agent-team-whaleforce-profile
 <a id="further-exploration"></a>
 ## 进一步探索
 
-- [实验性包](../README.zh.md)——孵化状态与发布规则。
-- [Agent Teams service](../agent-team/README.zh.md)——持久 roster、消息与任务板行为。
-- [Agent Teams 工具](../tool-agent-team/README.zh.md)——Team-scoped 模型工具表层。
-- [Agent Teams 浏览器 UI](../client-ui-agent-team/README.zh.md)——成员列表、任务看板与成员会话导航。
-- [Base bundle](../../bundle/base/README.zh.md)——本 patch 扩展的 profile 层。
+- [实验性包](../README.zh.md)--孵化状态与发布规则。
+- [Agent Teams service](../agent-team/README.zh.md)--持久 roster、消息与任务板行为。
+- [Agent Teams 工具](../tool-agent-team/README.zh.md)--Team-scoped 模型工具表层。
+- [Agent Teams 浏览器 UI](../client-ui-agent-team/README.zh.md)--成员列表、任务看板与成员会话导航。
+- [Base bundle](../../bundle/base/README.zh.md)--本 patch 扩展的 profile 层。
 
 -----
 
@@ -104,17 +104,17 @@ Team 策略与 schema 由 [`dsh-agent-team-whaleforce-tools`](../tool-agent-team
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **仅显式启用**——本包随安装提供但默认关闭；随附 CLI、Web、SDK、ACP 与 Python profile 都不会启用它。
-- **Workflow 子代理工具**——[Team 工具可见性限制](../tool-agent-team/README.zh.md#known-limitations-and-deferred-work)也适用于 workflow 子代理。
-- **共享 checkout**——所有 teammate 都观察同一个工作目录；本 bundle 不提供 worktree 隔离或文件系统锁。
-- **预设内的子代理控件**——Web 预设仍可在预设作用域挂载 continuable Subagent 控件；顶层组合包不会替换这些注册。
-- **需要 base profile**——本 patch 依赖 `dsh-base` 提供的配置行 id 与 Subagent 提供方；它不是独立 profile。
+- **仅显式启用**--本包随安装提供但默认关闭；随附 CLI、Web、SDK、ACP 与 Python profile 都不会启用它。
+- **Workflow 子代理工具**--[Team 工具可见性限制](../tool-agent-team/README.zh.md#known-limitations-and-deferred-work)也适用于 workflow 子代理。
+- **共享 checkout**--所有 teammate 都观察同一个工作目录；本 bundle 不提供 worktree 隔离或文件系统锁。
+- **预设内的子代理控件**--Web 预设仍可在预设作用域挂载 continuable Subagent 控件；顶层组合包不会替换这些注册。
+- **需要 base profile**--本 patch 依赖 `dsh-base` 提供的配置行 id 与 Subagent 提供方；它不是独立 profile。
 
 <a id="dev-note"></a>
 ### 开发备注
 
 <details>
-<summary>维护者的工作上下文——点击展开</summary>
+<summary>维护者的工作上下文--点击展开</summary>
 
 无。
 

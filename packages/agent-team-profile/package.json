@@ -33,6 +33,7 @@
   "dependencies": {
     "dsh-agent-team-whaleforce-core": "file:../agent-team",
     "dsh-agent-team-whaleforce-ui": "file:../client-ui-agent-team",
+    "dsh-agent-team-whaleforce-sessions": "file:../client-ui-agent-team-sessions",
     "dsh-agent-team-whaleforce-tools": "file:../tool-agent-team"
   },
   "peerDependencies": {

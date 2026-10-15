@@ -58,7 +58,7 @@ In Web and Desktop conversations, the [Team UI](../client-ui-agent-team/README.m
 ## Understand the implementation
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>Implementation internals - click to expand</summary>
 
 The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied after `dsh-base`, the patch disables `tool-subagent-control`, `tool-subagent-list-agents`, `tool-subagent`, and `tool-subagent-fork`, and inserts the Team service, tools, and UI with explicit providers and limits. The UI plugin has an inert Host entry; only the Web Client loader mounts its browser entry, so headless needs no Web server.
 
@@ -66,7 +66,7 @@ The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied
 |---|---|
 | [`cordis.patch.yml`](cordis.patch.yml) | Ordered patch over `dsh-base` |
 | [`src/index.ts`](src/index.ts) | Empty module entry; the patch is the runtime content |
-| — | No runtime invariant companion is published; the package carries only a static profile patch. The Team service and tools own their mutable relationships; the UI package owns its disposable slot registration. |
+| - | No runtime invariant companion is published; the package carries only a static profile patch. The Team service and tools own their mutable relationships; the UI package owns its disposable slot registration. |
 
 </details>
 
@@ -75,11 +75,11 @@ The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [Experimental packages](../README.md) — incubation status and publication policy.
-- [Agent Teams service](../agent-team/README.md) — durable roster, messaging, and task-board behavior.
-- [Agent Teams tools](../tool-agent-team/README.md) — the Team-scoped model tool surface.
-- [Agent Teams browser UI](../client-ui-agent-team/README.md) — roster, task board, and teammate session navigation.
-- [Base bundle](../../bundle/base/README.md) — the profile layer this patch extends.
+- [Experimental packages](../README.md) - incubation status and publication policy.
+- [Agent Teams service](../agent-team/README.md) - durable roster, messaging, and task-board behavior.
+- [Agent Teams tools](../tool-agent-team/README.md) - the Team-scoped model tool surface.
+- [Agent Teams browser UI](../client-ui-agent-team/README.md) - roster, task board, and teammate session navigation.
+- [Base bundle](../../bundle/base/README.md) - the profile layer this patch extends.
 
 -----
 
@@ -104,17 +104,17 @@ The bundle's composition is prefix-stable while its patch, Team identity, and co
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Opt-in only** — the package ships with the installation switched off; no shipped CLI, Web, SDK, ACP, or Python profile enables it.
-- **Workflow child tools** — the [Team tool visibility limitation](../tool-agent-team/README.md#known-limitations-and-deferred-work) also applies to workflow children.
-- **Shared checkout** — every teammate observes the same working directory; this bundle adds no worktree isolation or filesystem locking.
-- **Preset-scoped child controls** — Web presets can still mount continuable Subagent controls in their own scope; this top-level bundle does not replace those registrations.
-- **Base profile required** — the patch depends on row ids and Subagent providers supplied by `dsh-base`; it is not a standalone profile.
+- **Opt-in only** - the package ships with the installation switched off; no shipped CLI, Web, SDK, ACP, or Python profile enables it.
+- **Workflow child tools** - the [Team tool visibility limitation](../tool-agent-team/README.md#known-limitations-and-deferred-work) also applies to workflow children.
+- **Shared checkout** - every teammate observes the same working directory; this bundle adds no worktree isolation or filesystem locking.
+- **Preset-scoped child controls** - Web presets can still mount continuable Subagent controls in their own scope; this top-level bundle does not replace those registrations.
+- **Base profile required** - the patch depends on row ids and Subagent providers supplied by `dsh-base`; it is not a standalone profile.
 
 <a id="dev-note"></a>
 ### Dev Note
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>Working context for maintainers - click to expand</summary>
 
 None.
 

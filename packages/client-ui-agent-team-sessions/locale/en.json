@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Subagent Sessions",
+    "description": "Grouped subagent-session catalog with Running, Idle, Completed, and Error groups."
+  }
+}

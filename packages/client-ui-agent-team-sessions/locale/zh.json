@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "子智能体会话",
+    "description": "按 Running、Idle、Completed、Error 分组的子智能体会话目录。"
+  }
+}

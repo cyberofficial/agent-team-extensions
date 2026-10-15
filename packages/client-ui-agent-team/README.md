@@ -35,7 +35,7 @@ The panel shows the Lead Session's roster and task board from the shared Session
 
 Roster rows show durable names and phases. Provisioning and running members use the shared ongoing loader, inactive members use a person icon, and failed members use error. Live Session status supplies running activity; the shared `modelSelection` projection supplies a model when available. The current conversation carries a Current chat tag and cannot be selected. Selecting the Lead from a teammate conversation opens the Lead Session directly. Selecting an active teammate opens its ordinary continuable child address. The Host validates the parent, child, and mode when history opens; later human prompts use the same addressed-subagent conversation.
 
-The Team Panel roster cards carry a per-member model control, and teammate-chat composers show a model chip. Both call POST `/api/plugins/whaleforce/set-teammate-model`, with the model list from GET `/api/plugins/whaleforce/model-catalog`.
+The Team Panel roster cards carry a per-member model control, and teammate-chat composers show a model chip. Both call POST `/api/plugins/whaleforce/set-teammate-model`, with the model list from GET `/api/plugins/whaleforce/model-catalog`. The route also accepts a swap for inactive teammates: the selection is stored durably and surfaces as pending once that teammate's session next loads.
 
 ### Inspect the task board
 

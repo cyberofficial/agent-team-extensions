@@ -13,6 +13,9 @@
 - id: tool-subagent-fork
   disabled: true
 
+- id: ui-subagent
+  disabled: true
+
 - insert:
     - id: agent-team-whaleforce
       name: 'dsh-agent-team-whaleforce-core'
@@ -31,3 +34,6 @@
 
     - id: ui-agent-team-whaleforce
       name: 'dsh-agent-team-whaleforce-ui'
+
+    - id: ui-agent-team-whaleforce-sessions
+      name: 'dsh-agent-team-whaleforce-sessions'
