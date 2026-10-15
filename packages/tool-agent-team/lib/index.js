@@ -1,10 +1,10 @@
 import z from "@deepseek-ai/schemastery";
-import { TeamTaskId } from "dsh-agent-team-clone-core";
+import { TeamTaskId } from "dsh-agent-team-whaleforce-core";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 //#region lib/types/index.js
 /** Scoped model-facing tools for the opt-in Agent Teams runtime. */
 /** Cordis plugin name. */
-const name = "tool-agent-team-clone";
+const name = "tool-agent-team-whaleforce";
 /** Services required by the Team tool plugin. */
 const inject = [
 	"agents",
@@ -24,9 +24,9 @@ The Team Lead and all teammates share the same working directory and filesystem.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
 
-Use the target returned by clone_spawn_teammate or clone_list_agents for clone_send_message and clone_interrupt_agent, or as owner when assigning or filtering shared tasks. clone_send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before clone_wait_agent, use clone_list_agents and make sure another required member is running or provisioning; use clone_send_message first when the required member is inactive. clone_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.`;
+Use the target returned by whaleforce_spawn_teammate or whaleforce_list_agents for whaleforce_send_message and whaleforce_interrupt_agent, or as owner when assigning or filtering shared tasks. whaleforce_send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before whaleforce_wait_agent, use whaleforce_list_agents and make sure another required member is running or provisioning; use whaleforce_send_message first when the required member is inactive. whaleforce_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.`;
 const ACTIVE_WAIT_STATUSES = new Set(["running", "provisioning"]);
-const NO_ACTIVE_PEER_MESSAGE = "No other Team member is running or provisioning. clone_wait_agent cannot make progress or wake inactive teammates. Re-list with clone_list_agents and clone_team_task_list, then use clone_send_message to wake each required inactive teammate before waiting again.";
+const NO_ACTIVE_PEER_MESSAGE = "No other Team member is running or provisioning. whaleforce_wait_agent cannot make progress or wake inactive teammates. Re-list with whaleforce_list_agents and whaleforce_team_task_list, then use whaleforce_send_message to wake each required inactive teammate before waiting again.";
 /**
 * One model-facing roster row. The Lead pseudo-row omits the
 * teammate-only provisioning fields, so only identity, role, status, and
@@ -235,12 +235,12 @@ function install(agent, ctx, config) {
 	};
 	try {
 		register(scoped.systemPrompt.section({
-			name: "clone-team:policy",
+			name: "whaleforce-team:policy",
 			order: scoped.systemPrompt.getSectionOrder("TEAM_POLICY"),
 			text: POLICY
 		}));
 		register(scoped.tools.register(defineTool({
-			name: "clone_spawn_teammate",
+			name: "whaleforce_spawn_teammate",
 			description: "Create one named, durable teammate. Only the Team Lead may call this tool.",
 			parameters: {
 				name: {
@@ -266,7 +266,7 @@ function install(agent, ctx, config) {
 			},
 			output: jsonOutput(SPAWN_VALUE_SCHEMA),
 			async execute(args, exec) {
-				const agent = callingAgent(exec.agent, "clone_spawn_teammate");
+				const agent = callingAgent(exec.agent, "whaleforce_spawn_teammate");
 				const context = args.context ?? "fresh";
 				return { member: modelMember((await ctx.agentTeamsClone.spawnTeammate(agent, {
 					name: args.name,
@@ -276,9 +276,9 @@ function install(agent, ctx, config) {
 						text: `<system-reminder>
 You are teammate "${args.name.trim()}".
 Your Team Lead is named "lead".
-Use clone_list_agents({}) to find your teammates and their names.
-To message your Team Lead, use clone_send_message({ target: "lead", message: "..." }).
-To message another teammate, use clone_send_message({ target: "<teammate name>", message: "..." }).
+Use whaleforce_list_agents({}) to find your teammates and their names.
+To message your Team Lead, use whaleforce_send_message({ target: "lead", message: "..." }).
+To message another teammate, use whaleforce_send_message({ target: "<teammate name>", message: "..." }).
 </system-reminder>
 
 `
@@ -293,13 +293,13 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_send_message",
+			name: "whaleforce_send_message",
 			description: "Send one durable message to another Team member. A running target receives it at the nearest step boundary; an inactive target starts or resumes a turn.",
 			parameters: {
 				target: {
 					type: "string",
 					required: true,
-					description: "Member target returned by clone_spawn_teammate or clone_list_agents, including lead."
+					description: "Member target returned by whaleforce_spawn_teammate or whaleforce_list_agents, including lead."
 				},
 				message: {
 					type: "string",
@@ -309,7 +309,7 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			},
 			output: jsonOutput(SEND_VALUE_SCHEMA),
 			execute(args, exec) {
-				return ctx.agentTeamsClone.sendMessage(callingAgent(exec.agent, "clone_send_message"), {
+				return ctx.agentTeamsClone.sendMessage(callingAgent(exec.agent, "whaleforce_send_message"), {
 					target: args.target,
 					content: [{
 						type: "text",
@@ -320,16 +320,16 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_list_agents",
+			name: "whaleforce_list_agents",
 			description: "List the Lead and every durable teammate with an addressable target and current availability. inactive means no turn is executing, not a task result. provisioning and failed describe member creation.",
 			parameters: {},
 			output: jsonOutput(MEMBER_LIST_VALUE_SCHEMA),
 			execute(_args, exec) {
-				return Promise.resolve(ctx.agentTeamsClone.listMembers(callingAgent(exec.agent, "clone_list_agents")).map(modelMember));
+				return Promise.resolve(ctx.agentTeamsClone.listMembers(callingAgent(exec.agent, "whaleforce_list_agents")).map(modelMember));
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_wait_agent",
+			name: "whaleforce_wait_agent",
 			description: "Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.",
 			parameters: { timeout_ms: {
 				type: "integer",
@@ -337,7 +337,7 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			} },
 			output: jsonOutput(WAIT_VALUE_SCHEMA),
 			async execute(args, exec) {
-				const caller = callingAgent(exec.agent, "clone_wait_agent");
+				const caller = callingAgent(exec.agent, "whaleforce_wait_agent");
 				const timeoutMs = args.timeout_ms ?? 3e4;
 				if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1e4 || timeoutMs > 36e5) return await ctx.agentTeamsClone.waitForChange(caller, timeoutMs, exec.signal);
 				if (!ctx.agentTeamsClone.listMembers(caller).some((member) => member.id !== caller.id && ACTIVE_WAIT_STATUSES.has(member.status))) return {
@@ -351,20 +351,20 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_interrupt_agent",
+			name: "whaleforce_interrupt_agent",
 			description: "Interrupt one teammate's current turn while preserving its pending inbox. Team Lead only.",
 			parameters: { target: {
 				type: "string",
 				required: true,
-				description: "Teammate target returned by clone_spawn_teammate or clone_list_agents."
+				description: "Teammate target returned by whaleforce_spawn_teammate or whaleforce_list_agents."
 			} },
 			output: jsonOutput(INTERRUPT_VALUE_SCHEMA),
 			execute(args, exec) {
-				return Promise.resolve(ctx.agentTeamsClone.interrupt(callingAgent(exec.agent, "clone_interrupt_agent"), args.target));
+				return Promise.resolve(ctx.agentTeamsClone.interrupt(callingAgent(exec.agent, "whaleforce_interrupt_agent"), args.target));
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_team_task_create",
+			name: "whaleforce_team_task_create",
 			description: "Create one unowned pending task on the shared Team task board.",
 			parameters: {
 				subject: {
@@ -390,7 +390,7 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			},
 			output: jsonOutput(TASK_VIEW_SCHEMA),
 			async execute(args, exec) {
-				return await ctx.agentTeamsClone.createTask(callingAgent(exec.agent, "clone_team_task_create"), {
+				return await ctx.agentTeamsClone.createTask(callingAgent(exec.agent, "whaleforce_team_task_create"), {
 					subject: args.subject,
 					description: args.description,
 					...args.blocked_by === void 0 ? {} : { blockedBy: args.blocked_by.map(TeamTaskId) },
@@ -399,7 +399,7 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_team_task_list",
+			name: "whaleforce_team_task_list",
 			description: "List shared tasks, including readiness, owner, revision, blockers, and write-scope warnings.",
 			parameters: {
 				status: {
@@ -413,7 +413,7 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 				},
 				owner: {
 					type: "string",
-					description: "Optional member target from clone_spawn_teammate or clone_list_agents, matching ownerName; use unowned for tasks without an owner."
+					description: "Optional member target from whaleforce_spawn_teammate or whaleforce_list_agents, matching ownerName; use unowned for tasks without an owner."
 				},
 				ready: {
 					type: "boolean",
@@ -431,7 +431,7 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			output: jsonOutput(TASK_LIST_VALUE_SCHEMA),
 			execute(args, exec) {
 				const status = args.status;
-				const filtered = ctx.agentTeamsClone.listTasks(callingAgent(exec.agent, "clone_team_task_list")).filter((task) => (status === void 0 || task.status === status) && (args.owner === void 0 || (args.owner === "unowned" ? task.ownerName === void 0 : task.ownerName === args.owner)) && (args.ready === void 0 || task.ready === args.ready));
+				const filtered = ctx.agentTeamsClone.listTasks(callingAgent(exec.agent, "whaleforce_team_task_list")).filter((task) => (status === void 0 || task.status === status) && (args.owner === void 0 || (args.owner === "unowned" ? task.ownerName === void 0 : task.ownerName === args.owner)) && (args.ready === void 0 || task.ready === args.ready));
 				const cursor = args.cursor ?? 0;
 				const limit = args.limit ?? 50;
 				if (!Number.isSafeInteger(cursor) || cursor < 0) throw new Error("cursor must be a non-negative safe integer");
@@ -443,7 +443,7 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_team_task_get",
+			name: "whaleforce_team_task_get",
 			description: "Read the complete latest value of one shared task before changing or executing it.",
 			parameters: { task_id: {
 				type: "string",
@@ -452,12 +452,12 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 			} },
 			output: jsonOutput(TASK_VIEW_SCHEMA),
 			async execute(args, exec) {
-				return Promise.resolve(ctx.agentTeamsClone.getTask(callingAgent(exec.agent, "clone_team_task_get"), TeamTaskId(args.task_id)));
+				return Promise.resolve(ctx.agentTeamsClone.getTask(callingAgent(exec.agent, "whaleforce_team_task_get"), TeamTaskId(args.task_id)));
 			}
 		})));
 		register(scoped.tools.register(defineTool({
-			name: "clone_team_task_update",
-			description: "Compare-and-set a shared task action using the latest revision from clone_team_task_get or clone_team_task_list.",
+			name: "whaleforce_team_task_update",
+			description: "Compare-and-set a shared task action using the latest revision from whaleforce_team_task_get or whaleforce_team_task_list.",
 			parameters: {
 				task_id: {
 					type: "string",
@@ -504,12 +504,12 @@ To message another teammate, use clone_send_message({ target: "<teammate name>",
 				},
 				owner: {
 					type: "string",
-					description: "Member target from clone_spawn_teammate or clone_list_agents for Lead-only reassign; omit to unassign."
+					description: "Member target from whaleforce_spawn_teammate or whaleforce_list_agents for Lead-only reassign; omit to unassign."
 				}
 			},
 			output: jsonOutput(TASK_VIEW_SCHEMA),
 			async execute(args, exec) {
-				return await ctx.agentTeamsClone.updateTask(callingAgent(exec.agent, "clone_team_task_update"), {
+				return await ctx.agentTeamsClone.updateTask(callingAgent(exec.agent, "whaleforce_team_task_update"), {
 					taskId: TeamTaskId(args.task_id),
 					expectedRevision: args.expected_revision,
 					action: args.action,
@@ -551,7 +551,7 @@ function apply(ctx, config = {}) {
 	ctx.effect(() => () => {
 		for (const dispose of installed.values()) dispose();
 		installed.clear();
-	}, "tool-agent-team-clone.scopedTools()");
+	}, "tool-agent-team-whaleforce.scopedTools()");
 }
 //#endregion
 export { Config, apply, inject, name };

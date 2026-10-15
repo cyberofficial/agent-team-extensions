@@ -3,7 +3,7 @@ description: "Enable team collaboration, tools, and the Web roster and task boar
 kind: "package-bundle"
 ---
 
-# dsh-agent-team-clone-profile
+# dsh-agent-team-whaleforce-profile
 
 > Cloned from @deepseek-ai/dsh-experimental-agent-team-profile v0.2.0-rc.2 (MIT).
 
@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-agent-team-clone-profile` enables [Agent Teams](../agent-team/README.md) collaboration, tools, and Web UI with one bundle. Delegate work to teammates and view members, shared tasks, and teammate sessions in Web. Ordinary subagent delegation and overlapping global child controls are disabled; Workflow can still create fresh children. The bundle ships with dsh switched off. Enable it from the Plugins page or add it to an initialized profile.
+`dsh-agent-team-whaleforce-profile` enables [Agent Teams](../agent-team/README.md) collaboration, tools, and Web UI with one bundle. Delegate work to teammates and view members, shared tasks, and teammate sessions in Web. Ordinary subagent delegation and overlapping global child controls are disabled; Workflow can still create fresh children. The bundle ships with dsh switched off. Enable it from the Plugins page or add it to an initialized profile.
 
 ## Table of Contents
 
@@ -32,23 +32,23 @@ English | [中文](README.zh.md)
 Add the package to an initialized profile, then run a task that asks the Lead to delegate work:
 
 ```sh
-dsh plugin --profile headless add dsh-agent-team-clone-profile
+dsh plugin --profile headless add dsh-agent-team-whaleforce-profile
 dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
 ```
 
-The profile must already contain `@deepseek-ai/dsh-base`, whose Subagent services and provider rows this layer consumes. Removing the package with `dsh plugin --profile <name> remove dsh-agent-team-clone-profile` removes the bundle from the profile's ordered layer list.
+The profile must already contain `@deepseek-ai/dsh-base`, whose Subagent services and provider rows this layer consumes. Removing the package with `dsh plugin --profile <name> remove dsh-agent-team-whaleforce-profile` removes the bundle from the profile's ordered layer list.
 
 Enable Agent Teams on the Web or Desktop Plugins page to activate both tools and UI. For a CLI Web profile, use:
 
 ```sh
-dsh plugin --profile web add dsh-agent-team-clone-profile
+dsh plugin --profile web add dsh-agent-team-whaleforce-profile
 ```
 
-In an existing profile’s `package.json`, keep `dsh-agent-team-clone-profile` in `dsh.profile.bundles`. User patches targeting `ui-agent-team-clone` still apply.
+In an existing profile’s `package.json`, keep `dsh-agent-team-whaleforce-profile` in `dsh.profile.bundles`. User patches targeting `ui-agent-team-whaleforce` still apply.
 
 ### What you get
 
-The layer adds the Agent Teams domain and its scoped creation, roster, messaging, interruption, waiting, and task-board tools. Direct delegation uses `clone_spawn_teammate`, which supports fresh and fork context. The `subagent` and `subagent_fork` tools and overlapping global child controls are disabled. Workflow retains the base profile’s `spawn` provider, while the underlying Subagent services and both providers remain available to teammates and workflow.
+The layer adds the Agent Teams domain and its scoped creation, roster, messaging, interruption, waiting, and task-board tools. Direct delegation uses `whaleforce_spawn_teammate`, which supports fresh and fork context. The `subagent` and `subagent_fork` tools and overlapping global child controls are disabled. Workflow retains the base profile’s `spawn` provider, while the underlying Subagent services and both providers remain available to teammates and workflow.
 
 In Web and Desktop conversations, the [Team UI](../client-ui-agent-team/README.md) displays the member roster and shared task board and opens teammate sessions. The same bundle switch controls the tools and browser UI. The Plugins page reads the bundle's [icon](icon.svg) from its `package.json.icon` declaration, including while the bundle is disabled.
 
@@ -90,11 +90,11 @@ The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied
 
 #### What the model sees
 
-The Team policy and schemas belong to [`dsh-agent-team-clone-tools`](../tool-agent-team/README.md). This bundle changes composition only: Team-scoped `clone_list_agents`, `clone_send_message`, and `clone_interrupt_agent` replace the disabled global continuable-child controls. `clone_spawn_teammate` is the direct delegation tool. Workflow’s `agent()` calls create fresh one-shot children; their prompts must contain the context needed for their tasks.
+The Team policy and schemas belong to [`dsh-agent-team-whaleforce-tools`](../tool-agent-team/README.md). This bundle changes composition only: Team-scoped `whaleforce_list_agents`, `whaleforce_send_message`, and `whaleforce_interrupt_agent` replace the disabled global continuable-child controls. `whaleforce_spawn_teammate` is the direct delegation tool. Workflow’s `agent()` calls create fresh one-shot children; their prompts must contain the context needed for their tasks.
 
 #### Token effect
 
-The bundle adds the Team policy and tool schemas described by `dsh-agent-team-clone-tools`; it adds no prompt text of its own.
+The bundle adds the Team policy and tool schemas described by `dsh-agent-team-whaleforce-tools`; it adds no prompt text of its own.
 
 #### KV Cache effect
 

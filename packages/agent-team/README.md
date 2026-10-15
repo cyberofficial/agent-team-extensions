@@ -3,7 +3,7 @@ description: "Run a small team of named agents in one session: durable messages 
 kind: "package-reference"
 ---
 
-# dsh-agent-team-clone-core
+# dsh-agent-team-whaleforce-core
 
 > Cloned from @deepseek-ai/dsh-experimental-agent-team v0.2.0-rc.2 (MIT).
 
@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-agent-team-clone-core` turns one coding session into a small working team: the session's agent becomes the Lead, creates named teammates for delegated work, exchanges durable messages with them, and tracks shared tasks on a common board. Messages and task state survive crashes, reloads, and interruptions, so a teammate that was offline receives its queued messages when it resumes. It provides no tools of its own — mount the sibling `dsh-agent-team-clone-tools` so the model can create teammates, message them, and use the task board. It is a private renamed clone of the experimental package, carries no stability promise, and needs durable session storage to activate.
+`dsh-agent-team-whaleforce-core` turns one coding session into a small working team: the session's agent becomes the Lead, creates named teammates for delegated work, exchanges durable messages with them, and tracks shared tasks on a common board. Messages and task state survive crashes, reloads, and interruptions, so a teammate that was offline receives its queued messages when it resumes. It provides no tools of its own — mount the sibling `dsh-agent-team-whaleforce-tools` so the model can create teammates, message them, and use the task board. It is a private renamed rebrand of the experimental package, carries no stability promise, and needs durable session storage to activate.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Add this package to a composition when one agent should run a small team of named helpers in its own working directory, with messages and task state that survive crashes and restarts. It ships no tools of its own: mount it together with `dsh-agent-team-clone-tools` so the model can create teammates, message them, and use the task board.
+Add this package to a composition when one agent should run a small team of named helpers in its own working directory, with messages and task state that survive crashes and restarts. It ships no tools of its own: mount it together with `dsh-agent-team-whaleforce-tools` so the model can create teammates, message them, and use the task board.
 
 ### When to choose it
 
@@ -42,8 +42,8 @@ The smallest addition to an existing composition is durable session storage plus
 ```yaml
 # smallest team setup — durable storage plus both Team packages
 - name: '@deepseek-ai/dsh-session-persistence-jsonl'
-- name: 'dsh-agent-team-clone-core'
-- name: 'dsh-agent-team-clone-tools'
+- name: 'dsh-agent-team-whaleforce-core'
+- name: 'dsh-agent-team-whaleforce-tools'
 ```
 
 With the tools installed, the model does the rest on request — for example, "create a teammate named reviewer to check the diff", then "send reviewer the change summary". All limits are optional and validated at startup:
@@ -56,7 +56,7 @@ With the tools installed, the model does the rest on request — for example, "c
 | `maxMessageBytes` | `65,536` | Maximum size of one sent message |
 | `disposalTimeoutMs` | `5,000` | Time allowed for shutdown cleanup |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#dsh-agent-team-clone-core) is the exhaustive source for every accepted field and its JSDoc.
+The generated [configuration catalog](../../../docs/config-catalog.md#dsh-agent-team-whaleforce-core) is the exhaustive source for every accepted field and its JSDoc.
 
 ### Teammates
 
@@ -190,7 +190,7 @@ Each delivered peer message is a user-role message. A short first text block nam
 
 #### Token effect
 
-Each peer delivery adds the sender prefix plus message content to the target history. Task and roster mutations add no model tokens; their model-facing representation belongs to `dsh-agent-team-clone-tools` results.
+Each peer delivery adds the sender prefix plus message content to the target history. Task and roster mutations add no model tokens; their model-facing representation belongs to `dsh-agent-team-whaleforce-tools` results.
 
 #### KV Cache effect
 

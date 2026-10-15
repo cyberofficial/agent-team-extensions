@@ -1,9 +1,9 @@
 ---
-description: "九个让模型创建、发消息与协调 teammate 的工具，供挂载克隆 Agent Teams 插件的组合使用。"
+description: "九个让模型创建、发消息与协调 teammate 的工具，供挂载 WhaleForce Agent Teams 插件的组合使用。"
 kind: "package-reference"
 ---
 
-# dsh-agent-team-clone-tools
+# dsh-agent-team-whaleforce-tools
 
 Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
@@ -11,7 +11,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 ## 概述
 
-本包让模型创建具名 teammate、向它们发送消息、查看可用状态、等待进展、中断卡住的工作，并通过共享任务板协调。每个团队成员都会获得相同的九个工具，以及在共享工作区协调的指引。当模型只应在你明确要求后运行团队时，选择本包。所有工具都以 `clone_` 前缀重命名，因此本包与旧版 subagent 控件及原版团队工具共存，而不是覆盖它们。本包是实验性包的私有克隆，不提供稳定性保证。
+本包让模型创建具名 teammate、向它们发送消息、查看可用状态、等待进展、中断卡住的工作，并通过共享任务板协调。每个团队成员都会获得相同的九个工具，以及在共享工作区协调的指引。当模型只应在你明确要求后运行团队时，选择本包。所有工具都以 `whaleforce_` 前缀重命名，因此本包与旧版 subagent 控件及原版团队工具共存，而不是覆盖它们。本包是实验性包的私有 WhaleForce 品牌包，不提供稳定性保证。
 
 ## 目录
 
@@ -27,19 +27,19 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 <a id="use-this-package"></a>
 ## 使用本包
 
-当模型应该通过工具运行一支团队时，在 `dsh-agent-team-clone-core` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的九个工具，以及相同的协作策略。`clone_spawn_teammate` 在初始任务前加上 teammate 的角色和名字。
+当模型应该通过工具运行一支团队时，在 `dsh-agent-team-whaleforce-core` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的九个工具，以及相同的协作策略。`whaleforce_spawn_teammate` 在初始任务前加上 teammate 的角色和名字。
 
 ### 何时选择
 
-当模型应该自行创建与协调 teammate、而不是由人来操作 subagent 控件时，选择它。由于每个工具名都带 `clone_` 前缀，旧全局 subagent 工具与原版团队工具仍然可用：本包以不同名称注册，不会覆盖它们。固定策略只在明确要求团队或 teammate 时创建成员，因此普通任务永远不会自行触发委派。
+当模型应该自行创建与协调 teammate、而不是由人来操作 subagent 控件时，选择它。由于每个工具名都带 `whaleforce_` 前缀，旧全局 subagent 工具与原版团队工具仍然可用：本包以不同名称注册，不会覆盖它们。固定策略只在明确要求团队或 teammate 时创建成员，因此普通任务永远不会自行触发委派。
 
 ### 最小工作示例
 
-对现有组合的最小增量是 dsh-agent-team-clone-core 包 README（"最小工作设置"一节）中的两包片段：持久会话存储、克隆团队领域包与本包。插件本身只有两个可选设置：
+对现有组合的最小增量是 dsh-agent-team-whaleforce-core 包 README（"最小工作设置"一节）中的两包片段：持久会话存储、WhaleForce 团队领域包与本包。插件本身只有两个可选设置：
 
 ```yaml
-- id: tool-agent-team-clone
-  name: 'dsh-agent-team-clone-tools'
+- id: tool-agent-team-whaleforce
+  name: 'dsh-agent-team-whaleforce-tools'
   config:
     freshProvider: spawn
     forkProvider: fork
@@ -50,7 +50,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 | `freshProvider` | `spawn` | 启动 fresh teammate 的提供方 |
 | `forkProvider` | `fork` | 启动 fork teammate 的提供方 |
 
-生成的[配置目录](../../../docs/config-catalog.zh.md#dsh-agent-team-clone-tools)是每个受支持字段及其 JSDoc 的穷尽式真源。
+生成的[配置目录](../../../docs/config-catalog.zh.md#dsh-agent-team-whaleforce-tools)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
 试试这样要求 Lead 模型：「创建一个名为 reviewer 的 teammate 检查 diff，再把变更摘要发给 reviewer」。模型会调用创建工具，然后调用消息工具。
 
@@ -58,16 +58,16 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 九个工具分为四类能力：
 
-- **创建 teammate**——`clone_spawn_teammate` 接收名字、描述与初始任务；只有 Lead 可以调用它。
-- **发送消息**——`clone_send_message` 在最近的步骤边界对运行中的成员进行 steering（中途引导）、启动或恢复非活动成员。
-- **查看与等待**——`clone_list_agents` 返回各成员的 `target` 与可用状态；`clone_wait_agent` 等待下一次团队变化；`clone_interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
-- **管理任务板**——`clone_team_task_create`、`clone_team_task_list`、`clone_team_task_get` 与 `clone_team_task_update` 添加、浏览、读取与更新共享任务。
+- **创建 teammate**——`whaleforce_spawn_teammate` 接收名字、描述与初始任务；只有 Lead 可以调用它。
+- **发送消息**——`whaleforce_send_message` 在最近的步骤边界对运行中的成员进行 steering（中途引导）、启动或恢复非活动成员。
+- **查看与等待**——`whaleforce_list_agents` 返回各成员的 `target` 与可用状态；`whaleforce_wait_agent` 等待下一次团队变化；`whaleforce_interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
+- **管理任务板**——`whaleforce_team_task_create`、`whaleforce_team_task_list`、`whaleforce_team_task_get` 与 `whaleforce_team_task_update` 添加、浏览、读取与更新共享任务。
 
 创建和列表结果使用 `target` 标识成员，不包含成员 Session ID。可将该值用于消息和中断调用，或任务工具的 `owner` 参数；任务的 `ownerName` 使用相同值。`inactive` 表示没有轮次在执行，包括已加载和需要恢复的成员；它不表示任务完成或结果。`provisioning` 与 `failed` 描述成员创建状态。任何成员都可以给任何其他成员发消息并使用任务板；只有 Lead 可以创建与中断 teammate。任务更新保留领域的 owner 与 revision 校验，因此过期的编辑会被拒绝，而不是覆盖更新的成果。
 
 ### 成功与失败的表现
 
-发送消息在安全存储后即成功：结果为 `accepted`（已立即送达）或 `queued`（等待中），排队的消息绝不能重发。当没有其他成员 running 或 provisioning 时，`clone_wait_agent` 会立即返回 `noProgress`，提示调用方先唤醒 teammate；否则它会等待下一次变化，调用方随后重新读取状态。基于过期 revision 的任务编辑会被拒绝，而不是覆盖更新的成果。
+发送消息在安全存储后即成功：结果为 `accepted`（已立即送达）或 `queued`（等待中），排队的消息绝不能重发。当没有其他成员 running 或 provisioning 时，`whaleforce_wait_agent` 会立即返回 `noProgress`，提示调用方先唤醒 teammate；否则它会等待下一次变化，调用方随后重新读取状态。基于过期 revision 的任务编辑会被拒绝，而不是覆盖更新的成果。
 
 -----
 
@@ -98,7 +98,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 ### 策略与工具
 
-member scope 上的一个 `clone-team:policy` 段落说明共享的协作规则；固定文本与九个工具注册都声明在 [`src/index.ts`](src/index.ts)。九个工具 schema 注册在发布时被识别为 Team member 的 scope 中。scoped 注册使用带 `clone_` 前缀的名称，因此不会覆盖旧全局 continuable-subagent 控件。
+member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作规则；固定文本与九个工具注册都声明在 [`src/index.ts`](src/index.ts)。九个工具 schema 注册在发布时被识别为 Team member 的 scope 中。scoped 注册使用带 `whaleforce_` 前缀的名称，因此不会覆盖旧全局 continuable-subagent 控件。
 
 ### 按作用域注册与拆除
 
@@ -113,9 +113,9 @@ member scope 上的一个 `clone-team:policy` 段落说明共享的协作规则�
 
 当包级约定不够用时阅读以下页面。它们从领域服务逐步进入精确 schema 与设计背后的决策。
 
-- dsh-agent-team-clone-core 包——这些工具背后的 `ctx.agentTeamsClone` 领域服务。
+- dsh-agent-team-whaleforce-core 包——这些工具背后的 `ctx.agentTeamsClone` 领域服务。
 - [Agent Teams 子系统](../../../docs/subsystems/agent-team.zh.md)——持久 Team 类型与服务 API。
-- [生成的工具目录](../../../docs/tool-catalog.zh.md#dsh-agent-team-clone-tools)——模型接收的每个工具 schema。
+- [生成的工具目录](../../../docs/tool-catalog.zh.md#dsh-agent-team-whaleforce-tools)——模型接收的每个工具 schema。
 - [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.zh.md)——模型侧、scoping 与隔离决策。
 
 -----
@@ -127,7 +127,7 @@ member scope 上的一个 `clone-team:policy` 段落说明共享的协作规则�
 
 #### 模型看到什么
 
-一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部九个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`clone_spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse clone_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use clone_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use clone_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。
+一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部九个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`whaleforce_spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse whaleforce_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use whaleforce_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use whaleforce_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。
 
 #### Token 影响
 
@@ -148,7 +148,7 @@ provider／model、共享 system 策略和工具 schema 相同时，fork 保留�
 - **提示词策略只负责协调，不负责 confinement**——它无法阻止 Bash 或外部进程写入重叠文件。
 - **不会自主创建 Team**——除非用户明确要求，普通任务不会触发 delegation。
 - **没有 Web 控制功能**——浏览器 roster 与任务板呈现不属于该运行时包。
-- **实验原型，无稳定性承诺**——本包是公开发布的实验性包的私有克隆，孵化期间 schema 仍可自由变更。
+- **实验原型，无稳定性承诺**——本包是公开发布的实验性包的私有 WhaleForce 品牌包，孵化期间 schema 仍可自由变更。
 
 <a id="dev-note"></a>
 ### 开发备注

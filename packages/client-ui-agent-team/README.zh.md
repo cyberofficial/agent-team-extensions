@@ -3,7 +3,7 @@ description: "使用并排查实验性 Web Agent Teams roster、共享任务板�
 kind: "package-reference"
 ---
 
-# dsh-agent-team-clone-ui
+# dsh-agent-team-whaleforce-ui
 
 [English](README.md) | 中文
 
@@ -27,7 +27,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-通过 [`dsh-agent-team-clone-profile`](../agent-team-profile/README.zh.md) 启用本包。这个组合包同时提供团队服务、工具与 Web 界面。Web Client loader 挂载 `/client` export；root Host export 不执行行为，本包也没有用户配置字段。
+通过 [`dsh-agent-team-whaleforce-profile`](../agent-team-profile/README.zh.md) 启用本包。这个组合包同时提供团队服务、工具与 Web 界面。Web Client loader 挂载 `/client` export；root Host export 不执行行为，本包也没有用户配置字段。
 
 ### 检查并导航 roster
 

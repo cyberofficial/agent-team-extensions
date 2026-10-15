@@ -1,9 +1,9 @@
 ---
-description: "Nine tools that let the model create, message, and coordinate teammates, for compositions mounting the cloned Agent Teams plugins."
+description: "Nine tools that let the model create, message, and coordinate teammates, for compositions mounting the WhaleForce Agent Teams plugins."
 kind: "package-reference"
 ---
 
-# dsh-agent-team-clone-tools
+# dsh-agent-team-whaleforce-tools
 
 Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package lets the model create named teammates, send them messages, inspect availability, wait for progress, interrupt stuck work, and coordinate through a shared task board. Every team member receives the same nine tools and guidance for coordinating in a shared workspace. Choose it when the model should operate a team only after you explicitly request one. Every tool is renamed with a `clone_` prefix, so this package coexists with the legacy subagent controls and the original team tools instead of shadowing them. This is a private clone of the experimental package and provides no stability guarantee.
+This package lets the model create named teammates, send them messages, inspect availability, wait for progress, interrupt stuck work, and coordinate through a shared task board. Every team member receives the same nine tools and guidance for coordinating in a shared workspace. Choose it when the model should operate a team only after you explicitly request one. Every tool is renamed with a `whaleforce_` prefix, so this package coexists with the legacy subagent controls and the original team tools instead of shadowing them. This is a private rebrand of the experimental package and provides no stability guarantee.
 
 ## Table of Contents
 
@@ -27,19 +27,19 @@ This package lets the model create named teammates, send them messages, inspect 
 <a id="use-this-package"></a>
 ## Use this package
 
-Add this package on top of `dsh-agent-team-clone-core` when the model should run a team through tools. Once mounted, every team member — the Lead and each teammate — gets the same nine tools plus the same coordination policy. `clone_spawn_teammate` prefixes the initial task with the teammate’s role and name.
+Add this package on top of `dsh-agent-team-whaleforce-core` when the model should run a team through tools. Once mounted, every team member — the Lead and each teammate — gets the same nine tools plus the same coordination policy. `whaleforce_spawn_teammate` prefixes the initial task with the teammate’s role and name.
 
 ### When to choose it
 
-Choose it when the model should create and coordinate teammates by itself rather than a human driving subagent controls. Because every tool name carries the `clone_` prefix, the legacy global subagent tools and the original team tools keep working: this package registers under distinct names instead of shadowing them. The fixed policy creates teammates only when you explicitly ask for a team or teammates, so ordinary tasks never trigger delegation on their own.
+Choose it when the model should create and coordinate teammates by itself rather than a human driving subagent controls. Because every tool name carries the `whaleforce_` prefix, the legacy global subagent tools and the original team tools keep working: this package registers under distinct names instead of shadowing them. The fixed policy creates teammates only when you explicitly ask for a team or teammates, so ordinary tasks never trigger delegation on their own.
 
 ### Smallest working example
 
-The smallest addition to an existing composition is the two-package fragment from the dsh-agent-team-clone-core package README (its "smallest working setup" section): durable session storage, the cloned team domain package, and this package. The plugin itself takes two optional settings:
+The smallest addition to an existing composition is the two-package fragment from the dsh-agent-team-whaleforce-core package README (its "smallest working setup" section): durable session storage, the WhaleForce team domain package, and this package. The plugin itself takes two optional settings:
 
 ```yaml
-- id: tool-agent-team-clone
-  name: 'dsh-agent-team-clone-tools'
+- id: tool-agent-team-whaleforce
+  name: 'dsh-agent-team-whaleforce-tools'
   config:
     freshProvider: spawn
     forkProvider: fork
@@ -50,7 +50,7 @@ The smallest addition to an existing composition is the two-package fragment fro
 | `freshProvider` | `spawn` | Provider that starts fresh teammates |
 | `forkProvider` | `fork` | Provider that starts fork teammates |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#dsh-agent-team-clone-tools) is the exhaustive source for every accepted field and its JSDoc.
+The generated [configuration catalog](../../../docs/config-catalog.md#dsh-agent-team-whaleforce-tools) is the exhaustive source for every accepted field and its JSDoc.
 
 Try it by asking the Lead model: "create a teammate named reviewer to check the diff, then send reviewer the change summary". The model calls the creation tool and then the messaging tool.
 
@@ -58,16 +58,16 @@ Try it by asking the Lead model: "create a teammate named reviewer to check the 
 
 The nine tools group into four capabilities:
 
-- **Create a teammate** — `clone_spawn_teammate` takes a name, a description, and the initial task; only the Lead can call it.
-- **Send messages** — `clone_send_message` steers a running member at its nearest step boundary, starts or resumes an inactive member.
-- **See and wait** — `clone_list_agents` returns each member’s `target` and availability; `clone_wait_agent` waits for the next team change; `clone_interrupt_agent` stops a teammate's current turn (Lead only).
-- **Manage the task board** — `clone_team_task_create`, `clone_team_task_list`, `clone_team_task_get`, and `clone_team_task_update` add, browse, read, and update shared tasks.
+- **Create a teammate** — `whaleforce_spawn_teammate` takes a name, a description, and the initial task; only the Lead can call it.
+- **Send messages** — `whaleforce_send_message` steers a running member at its nearest step boundary, starts or resumes an inactive member.
+- **See and wait** — `whaleforce_list_agents` returns each member’s `target` and availability; `whaleforce_wait_agent` waits for the next team change; `whaleforce_interrupt_agent` stops a teammate's current turn (Lead only).
+- **Manage the task board** — `whaleforce_team_task_create`, `whaleforce_team_task_list`, `whaleforce_team_task_get`, and `whaleforce_team_task_update` add, browse, read, and update shared tasks.
 
 Creation and listing results identify members by `target`, with no member Session ID. Use that value in message and interrupt calls or the task tools’ `owner` parameter; task `ownerName` uses the same value. `inactive` means no turn is executing, whether the member is loaded or must be resumed; it does not describe task completion or outcome. `provisioning` and `failed` describe member creation. Any member can message any other member and use the task board; only the Lead creates and interrupts teammates. Task updates keep the domain's owner and revision checks, so an outdated edit is rejected instead of overwriting newer work.
 
 ### What success and failure look like
 
-Sending a message succeeds as soon as it is safely stored: the result is `accepted` (delivered now) or `queued` (waiting), and a queued message must not be resent. `clone_wait_agent` returns `noProgress` right away when no other member is running or provisioning, telling the caller to wake a teammate first; otherwise it waits for the next change and the caller re-reads state afterward. Task edits based on an outdated revision are rejected rather than overwriting newer work.
+Sending a message succeeds as soon as it is safely stored: the result is `accepted` (delivered now) or `queued` (waiting), and a queued message must not be resent. `whaleforce_wait_agent` returns `noProgress` right away when no other member is running or provisioning, telling the caller to wake a teammate first; otherwise it waits for the next change and the caller re-reads state afterward. Task edits based on an outdated revision are rejected rather than overwriting newer work.
 
 -----
 
@@ -98,7 +98,7 @@ The [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-
 
 ### Policy and tools
 
-One `clone-team:policy` section on the member scope states the shared coordination rules; the fixed text and the nine tool registrations are declared in [`src/index.ts`](src/index.ts). The nine tool schemas are registered in scopes recognized as Team members at publication. Scoped registrations use `clone_`-prefixed names, so they never shadow the legacy global continuable-subagent controls.
+One `whaleforce-team:policy` section on the member scope states the shared coordination rules; the fixed text and the nine tool registrations are declared in [`src/index.ts`](src/index.ts). The nine tool schemas are registered in scopes recognized as Team members at publication. Scoped registrations use `whaleforce_`-prefixed names, so they never shadow the legacy global continuable-subagent controls.
 
 ### Scoped registration and teardown
 
@@ -113,9 +113,9 @@ One `clone-team:policy` section on the member scope states the shared coordinati
 
 Read these pages when the package-level contract is not enough. They move from the domain service to the exact schemas and the decisions behind the design.
 
-- dsh-agent-team-clone-core package — the `ctx.agentTeamsClone` domain service behind these tools.
+- dsh-agent-team-whaleforce-core package — the `ctx.agentTeamsClone` domain service behind these tools.
 - [Agent Teams subsystem](../../../docs/subsystems/agent-team.md) — durable Team types and service API.
-- [Generated tool catalog](../../../docs/tool-catalog.md#dsh-agent-team-clone-tools) — every tool schema the model receives.
+- [Generated tool catalog](../../../docs/tool-catalog.md#dsh-agent-team-whaleforce-tools) — every tool schema the model receives.
 - [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.md) — model-facing, scoping, and isolation decisions.
 
 -----
@@ -127,7 +127,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-One shared system policy states the explicit-delegation requirement, shared-cwd behavior, filesystem stale-version recovery, Bash/formatter/codegen risk, task and write-scope coordination, Steer delivery, the no-retry mailbox rule, and the Lead's duty to wait before answering. All nine Team schemas are identical for Leads and teammates; execution enforces Lead-only operations. `clone_spawn_teammate` prefixes its initial user message with `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse clone_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use clone_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use clone_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`, followed by a blank line and the task. The prefix contains no Team id and works when runtime context is disabled. Forks inherit history without an additional Lead identity message.
+One shared system policy states the explicit-delegation requirement, shared-cwd behavior, filesystem stale-version recovery, Bash/formatter/codegen risk, task and write-scope coordination, Steer delivery, the no-retry mailbox rule, and the Lead's duty to wait before answering. All nine Team schemas are identical for Leads and teammates; execution enforces Lead-only operations. `whaleforce_spawn_teammate` prefixes its initial user message with `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse whaleforce_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use whaleforce_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use whaleforce_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`, followed by a blank line and the task. The prefix contains no Team id and works when runtime context is disabled. Forks inherit history without an additional Lead identity message.
 
 #### Token effect
 
@@ -148,7 +148,7 @@ These limits describe what the policy and tools cannot guarantee for a team. The
 - **Prompt policy is coordination, not confinement** — it cannot stop Bash or external processes from writing overlapping files.
 - **No autonomous team creation** — ordinary tasks do not trigger delegation unless the user explicitly requests it.
 - **No Web controls** — browser roster and task-board presentation is outside this runtime package.
-- **Experimental prototype with no stability promise** — this is a private clone of a public experimental package; its schemas can change freely while it incubates.
+- **Experimental prototype with no stability promise** — this is a private rebrand of a public experimental package; its schemas can change freely while it incubates.
 
 <a id="dev-note"></a>
 ### Dev Note

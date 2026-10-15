@@ -3,7 +3,7 @@ description: "在一个会话中运行一个小型具名 agent（智能体）团
 kind: "package-reference"
 ---
 
-# dsh-agent-team-clone-core
+# dsh-agent-team-whaleforce-core
 
 > Cloned from @deepseek-ai/dsh-experimental-agent-team v0.2.0-rc.2 (MIT).
 
@@ -11,7 +11,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-agent-team-clone-core` 把一个编码会话变成一个小型工作团队：会话中的 agent 成为 Lead，创建具名 teammate 处理委派的工作，与它们交换持久消息，并在公共任务板上跟踪共享任务。消息与任务状态能挺过崩溃、reload 与中断，因此离线的 teammate 会在恢复后收到排队的消息。它本身不提供任何工具——请挂载兄弟包 `dsh-agent-team-clone-tools`，让模型能够创建 teammate、给它们发消息并使用任务板。它是实验性包的私有改名克隆、不承诺稳定性，并且需要持久会话存储才能激活。
+`dsh-agent-team-whaleforce-core` 把一个编码会话变成一个小型工作团队：会话中的 agent 成为 Lead，创建具名 teammate 处理委派的工作，与它们交换持久消息，并在公共任务板上跟踪共享任务。消息与任务状态能挺过崩溃、reload 与中断，因此离线的 teammate 会在恢复后收到排队的消息。它本身不提供任何工具——请挂载兄弟包 `dsh-agent-team-whaleforce-tools`，让模型能够创建 teammate、给它们发消息并使用任务板。它是实验性包的私有改名 WhaleForce 品牌包、不承诺稳定性，并且需要持久会话存储才能激活。
 
 ## 目录
 
@@ -27,7 +27,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当一个 agent 应该在自己的工作目录中运行一支小型具名助手团队、且消息与任务状态需要挺过崩溃与重启时，把本包加入组合。它本身不带工具：请与 `dsh-agent-team-clone-tools` 一起挂载，让模型能够创建 teammate、给它们发消息并使用任务板。
+当一个 agent 应该在自己的工作目录中运行一支小型具名助手团队、且消息与任务状态需要挺过崩溃与重启时，把本包加入组合。它本身不带工具：请与 `dsh-agent-team-whaleforce-tools` 一起挂载，让模型能够创建 teammate、给它们发消息并使用任务板。
 
 ### 何时选择
 
@@ -42,8 +42,8 @@ kind: "package-reference"
 ```yaml
 # smallest team setup — durable storage plus both Team packages
 - name: '@deepseek-ai/dsh-session-persistence-jsonl'
-- name: 'dsh-agent-team-clone-core'
-- name: 'dsh-agent-team-clone-tools'
+- name: 'dsh-agent-team-whaleforce-core'
+- name: 'dsh-agent-team-whaleforce-tools'
 ```
 
 工具安装后，模型会按请求完成其余工作——例如先「创建一个名为 reviewer 的 teammate 检查 diff」，再「把变更摘要发给 reviewer」。所有限制都是可选的，并在启动时校验：
@@ -56,7 +56,7 @@ kind: "package-reference"
 | `maxMessageBytes` | `65,536` | 单条发送消息的最大尺寸 |
 | `disposalTimeoutMs` | `5,000` | 关闭清理允许的时间 |
 
-生成的[配置目录](../../../docs/config-catalog.zh.md#dsh-agent-team-clone-core)是每个受支持字段及其 JSDoc 的穷尽式真源。
+生成的[配置目录](../../../docs/config-catalog.zh.md#dsh-agent-team-whaleforce-core)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
 ### Teammate
 
@@ -190,7 +190,7 @@ dispose 会关闭准入、中止并等待已获准的创建与 mailbox dispatch 
 
 #### Token 影响
 
-每次 peer 投递都会把发送者前缀与消息内容加入 target 历史。任务与 roster 变更不增加模型 token；其面向模型的呈现属于 `dsh-agent-team-clone-tools` 结果。
+每次 peer 投递都会把发送者前缀与消息内容加入 target 历史。任务与 roster 变更不增加模型 token；其面向模型的呈现属于 `dsh-agent-team-whaleforce-tools` 结果。
 
 #### KV Cache 影响
 

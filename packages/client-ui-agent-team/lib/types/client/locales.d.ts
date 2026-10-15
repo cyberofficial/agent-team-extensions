@@ -1,6 +1,6 @@
 /** Agent Teams Web dictionaries. */
 /** Locale namespace owned by the Agent Teams Web UI. */
-export declare const NS = "agent-team-clone";
+export declare const NS = "agent-team-whaleforce";
 /** Simplified Chinese dictionary and key source. */
 export declare const zh: {
     trigger: string;

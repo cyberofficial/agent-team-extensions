@@ -1,44 +1,44 @@
 # Bilingual-pair consistency record inherited from the original package: per heading
 # section, a hash of its English and Chinese blocks outside code blocks and generated regions.
-# Clone note: identity strings were adapted for the clone and these hashes were NOT
+# WhaleForce note: identity strings were adapted for WhaleForce and these hashes were NOT
 # recomputed; regenerate with the original repo tooling before relying on them:
 #   pnpm run verify-translation-pairing --write packages/client-ui-agent-team/README.md
 /:
   en: 6deb254c416ff51b
   zh: e0913c7be837da78
-/dsh-agent-team-clone-ui:
+/dsh-agent-team-whaleforce-ui:
   en: 447e3c2bbf1ea3c6
   zh: 25bba08497976d12
-/dsh-agent-team-clone-ui/summary:
+/dsh-agent-team-whaleforce-ui/summary:
   en: a30d7bbb951ed3ec
   zh: 8b12eca1138820f0
-/dsh-agent-team-clone-ui/table-of-contents:
+/dsh-agent-team-whaleforce-ui/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
-/dsh-agent-team-clone-ui/use-this-package:
+/dsh-agent-team-whaleforce-ui/use-this-package:
   en: ba021754d3ae6d9e
   zh: 18017b40f13e6ffd
-/dsh-agent-team-clone-ui/use-this-package/inspect-and-navigate-the-roster:
+/dsh-agent-team-whaleforce-ui/use-this-package/inspect-and-navigate-the-roster:
   en: 62778e911a4ee9e9
   zh: dff1dbbc3d5e4af6
-/dsh-agent-team-clone-ui/use-this-package/inspect-the-task-board:
+/dsh-agent-team-whaleforce-ui/use-this-package/inspect-the-task-board:
   en: cf09faa436dad9fd
   zh: e7423f4111eb88f9
-/dsh-agent-team-clone-ui/understand-the-implementation:
+/dsh-agent-team-whaleforce-ui/understand-the-implementation:
   en: 3ea723e7ea467be7
   zh: dba02b20bef0fd7f
-/dsh-agent-team-clone-ui/further-exploration:
+/dsh-agent-team-whaleforce-ui/further-exploration:
   en: 71ac041029c64d5a
   zh: fef2e4c5dccb8d1b
-/dsh-agent-team-clone-ui/model-experience:
+/dsh-agent-team-whaleforce-ui/model-experience:
   en: 47ebeba07d72759d
   zh: 8fe8133f6dd845a9
-/dsh-agent-team-clone-ui/model-experience/kv-cache-effect:
+/dsh-agent-team-whaleforce-ui/model-experience/kv-cache-effect:
   en: b51b320f5e4dacfc
   zh: 6695947c3f9fed28
-/dsh-agent-team-clone-ui/known-limitations-and-deferred-work:
+/dsh-agent-team-whaleforce-ui/known-limitations-and-deferred-work:
   en: 254e4aa2f81037d2
   zh: 3cdf19dffafb51df
-/dsh-agent-team-clone-ui/known-limitations-and-deferred-work/dev-note:
+/dsh-agent-team-whaleforce-ui/known-limitations-and-deferred-work/dev-note:
   en: 317e07f2fd605e55
   zh: 66836ceef6216892

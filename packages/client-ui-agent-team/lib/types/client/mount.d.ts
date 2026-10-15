@@ -4,7 +4,7 @@ import { type TeamKey } from './locales.ts';
 declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {
         /** Agent Teams roster and task-board copy. */
-        'agent-team-clone': TeamKey;
+        'agent-team-whaleforce': TeamKey;
     }
 }
 /** Required browser services for navigation, slots, and localized copy. */

@@ -3,7 +3,7 @@ description: "在一个实验性组合包中启用团队协作、工具与 Web �
 kind: "package-bundle"
 ---
 
-# dsh-agent-team-clone-profile
+# dsh-agent-team-whaleforce-profile
 
 > Cloned from @deepseek-ai/dsh-experimental-agent-team-profile v0.2.0-rc.2 (MIT).
 
@@ -11,7 +11,7 @@ kind: "package-bundle"
 
 ## 概述
 
-`dsh-agent-team-clone-profile` 让 [Agent Teams](../agent-team/README.zh.md) 的团队协作、工具和 Web 界面通过一个组合包启用。开启后可委派 teammate，并在 Web 中查看成员、任务看板和成员会话。普通 subagent 委派及名称重叠的全局 child control 会被禁用；Workflow 仍可创建 fresh 子代理。本包随 dsh 安装提供，默认关闭，可在插件页开启或添加到已初始化的 profile。
+`dsh-agent-team-whaleforce-profile` 让 [Agent Teams](../agent-team/README.zh.md) 的团队协作、工具和 Web 界面通过一个组合包启用。开启后可委派 teammate，并在 Web 中查看成员、任务看板和成员会话。普通 subagent 委派及名称重叠的全局 child control 会被禁用；Workflow 仍可创建 fresh 子代理。本包随 dsh 安装提供，默认关闭，可在插件页开启或添加到已初始化的 profile。
 
 ## 目录
 
@@ -32,23 +32,23 @@ kind: "package-bundle"
 将本包添加到已初始化的 profile，然后运行一个要求 Lead 委派工作的任务：
 
 ```sh
-dsh plugin --profile headless add dsh-agent-team-clone-profile
+dsh plugin --profile headless add dsh-agent-team-whaleforce-profile
 dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
 ```
 
-profile 必须已经包含 `@deepseek-ai/dsh-base`，本层会使用其中的 Subagent 服务与提供方配置行。执行 `dsh plugin --profile <name> remove dsh-agent-team-clone-profile` 移除本包时，bundle 也会从 profile 的有序层列表中移除。
+profile 必须已经包含 `@deepseek-ai/dsh-base`，本层会使用其中的 Subagent 服务与提供方配置行。执行 `dsh plugin --profile <name> remove dsh-agent-team-whaleforce-profile` 移除本包时，bundle 也会从 profile 的有序层列表中移除。
 
 在 Web 或 Desktop 的插件页开启「智能体团队」，即可同时启用工具与界面。CLI 的 Web profile 也可使用以下命令：
 
 ```sh
-dsh plugin --profile web add dsh-agent-team-clone-profile
+dsh plugin --profile web add dsh-agent-team-whaleforce-profile
 ```
 
-已有 profile 的 `package.json` 中，`dsh.profile.bundles` 应只保留 `dsh-agent-team-clone-profile`。用户 patch 中的 `ui-agent-team-clone` 配置仍然有效。
+已有 profile 的 `package.json` 中，`dsh.profile.bundles` 应只保留 `dsh-agent-team-whaleforce-profile`。用户 patch 中的 `ui-agent-team-whaleforce` 配置仍然有效。
 
 ### 获得的功能
 
-本层会添加 Agent Teams domain，以及 Team-scoped 创建、roster、消息、interrupt、等待与任务板工具。直接委派使用支持 fresh 和 fork 上下文的 `clone_spawn_teammate`。`subagent`、`subagent_fork` 工具和名称重叠的全局 child control 均被禁用。Workflow 保留 base profile 的 `spawn` 提供方，底层 Subagent 服务和两个提供方仍供 teammate 与 workflow 使用。
+本层会添加 Agent Teams domain，以及 Team-scoped 创建、roster、消息、interrupt、等待与任务板工具。直接委派使用支持 fresh 和 fork 上下文的 `whaleforce_spawn_teammate`。`subagent`、`subagent_fork` 工具和名称重叠的全局 child control 均被禁用。Workflow 保留 base profile 的 `spawn` 提供方，底层 Subagent 服务和两个提供方仍供 teammate 与 workflow 使用。
 
 在 Web 和 Desktop 会话中，[Team UI](../client-ui-agent-team/README.zh.md) 显示成员列表与共享任务看板，并可打开成员会话。同一个组合包开关控制工具与浏览器 UI。插件页通过组合包的 `package.json.icon` 声明读取其[图标](icon.svg)，组合包禁用时也会显示。
 
@@ -90,11 +90,11 @@ dsh plugin --profile web add dsh-agent-team-clone-profile
 
 #### 模型会看到什么
 
-Team 策略与 schema 由 [`dsh-agent-team-clone-tools`](../tool-agent-team/README.zh.md) 所有。本 bundle 只改变 composition：Team-scoped `clone_list_agents`、`clone_send_message` 与 `clone_interrupt_agent` 会替代已禁用的全局 continuable-child control。`clone_spawn_teammate` 是直接委派工具。Workflow 的 `agent()` 调用创建 fresh 一次性子代理；其提示词必须包含任务所需的上下文。
+Team 策略与 schema 由 [`dsh-agent-team-whaleforce-tools`](../tool-agent-team/README.zh.md) 所有。本 bundle 只改变 composition：Team-scoped `whaleforce_list_agents`、`whaleforce_send_message` 与 `whaleforce_interrupt_agent` 会替代已禁用的全局 continuable-child control。`whaleforce_spawn_teammate` 是直接委派工具。Workflow 的 `agent()` 调用创建 fresh 一次性子代理；其提示词必须包含任务所需的上下文。
 
 #### Token 影响
 
-本 bundle 会加入 `dsh-agent-team-clone-tools` 描述的 Team 策略与工具 schema；它自身不增加提示词文本。
+本 bundle 会加入 `dsh-agent-team-whaleforce-tools` 描述的 Team 策略与工具 schema；它自身不增加提示词文本。
 
 #### KV Cache 影响
 

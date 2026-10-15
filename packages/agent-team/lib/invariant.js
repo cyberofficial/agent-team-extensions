@@ -481,7 +481,7 @@ const teamProjectionDefinition = {
 //#endregion
 //#region lib/types/invariant.js
 /** Agent Teams runtime invariant companion. */
-const PACKAGE_NAME = "dsh-agent-team-clone-core";
+const PACKAGE_NAME = "dsh-agent-team-whaleforce-core";
 /** Cordis companion plugin name. */
 const name = "team-invariant";
 /** Invariant registry required by the companion. */

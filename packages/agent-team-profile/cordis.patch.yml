@@ -1,4 +1,4 @@
-# Agent Teams clone profile layer. Apply after dsh-base so these replacements
+# Agent Teams WhaleForce profile layer. Apply after dsh-base so these replacements
 # keep direct delegation and coordination on the Team tools.
 
 - id: tool-subagent-control
@@ -14,20 +14,20 @@
   disabled: true
 
 - insert:
-    - id: agent-team-clone
-      name: 'dsh-agent-team-clone-core'
+    - id: agent-team-whaleforce
+      name: 'dsh-agent-team-whaleforce-core'
       config:
-        maxMembers: 8
+        maxMembers: 64
         maxTasks: 256
         maxPendingMessagesPerMember: 64
         maxMessageBytes: 65536
         disposalTimeoutMs: 5000
 
-    - id: tool-agent-team-clone
-      name: 'dsh-agent-team-clone-tools'
+    - id: tool-agent-team-whaleforce
+      name: 'dsh-agent-team-whaleforce-tools'
       config:
         freshProvider: spawn
         forkProvider: fork
 
-    - id: ui-agent-team-clone
-      name: 'dsh-agent-team-clone-ui'
+    - id: ui-agent-team-whaleforce
+      name: 'dsh-agent-team-whaleforce-ui'

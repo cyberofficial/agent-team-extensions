@@ -2,7 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import z from '@deepseek-ai/schemastery';
 /** Cordis plugin name. */
-export declare const name = "tool-agent-team-clone";
+export declare const name = "tool-agent-team-whaleforce";
 /** Services required by the Team tool plugin. */
 export declare const inject: string[];
 /** Tool routing configuration. */
