@@ -1,5 +1,5 @@
 ---
-description: "使用并排查实验性 Web Agent Teams roster、共享任务板与 teammate 导航面板。"
+description: "使用并排查实验性 Web Agent Teams roster、共享任务板、teammate 导航面板与按成员模型控件。"
 kind: "package-reference"
 ---
 
@@ -11,7 +11,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包向 Web 会话页头添加 Agent Teams action，让用户检查当前 roster、查看共享任务板并导航到 teammate 会话。它从共享 Session store 读取 Lead Session 的 `agentTeam` 投影，Host 投影 frame 使其保持最新而无需刷新控件，并让普通 child history 导航继续使用稳定的 addressed-subagent 路径。通过公开发布的实验性 Agent Teams bundle 选择本包。这个浏览器 projection 不扩展稳定 API Proxy、不存储 Team 状态，也不注册面向模型的输入。
+本包向 Web 会话页头添加 Agent Teams action，让用户检查当前 roster、查看共享任务板、导航到 teammate 会话，并更换 teammate 的模型。它从共享 Session store 读取 Lead Session 的 `agentTeam` 投影，Host 投影 frame 使其保持最新而无需刷新控件，并让普通 child history 导航继续使用稳定的 addressed-subagent 路径。通过公开发布的实验性 Agent Teams bundle 选择本包。这个浏览器 projection 不扩展稳定 API Proxy、不存储 Team 状态，也不注册面向模型的输入。
 
 ## 目录
 
@@ -35,6 +35,8 @@ kind: "package-reference"
 
 Roster 行展示持久名称与阶段。provisioning 和 running 成员使用共享 ongoing loading，inactive 成员使用人物图标，failed 成员使用 error 红点。实时 Session 状态提供运行活动；共享 `modelSelection` 投影在可用时提供模型。当前会话带有“当前会话”标签且不可选择。在 teammate 会话中选择 Lead 会直接打开 Lead Session。选择 active teammate 会打开其普通 continuable 子会话地址。Host 在打开历史时校验 parent、child 与 mode；后续人类提示词使用同一 addressed-subagent 会话。
 
+Team Panel 的每张 roster 卡片都带有按成员的模型控件，每个 teammate 聊天 composer 都显示一个模型 chip。两者都调用 POST `/api/plugins/whaleforce/set-teammate-model`，模型列表来自 GET `/api/plugins/whaleforce/model-catalog`。
+
 ### 查看任务板
 
 可开始的 pending 任务使用 idle 灰点，被依赖阻塞的 pending 任务使用 warning 橙点，in-progress 任务使用 ongoing loading，completed 任务使用 done 绿点。
@@ -47,7 +49,7 @@ Roster 行展示持久名称与阶段。provisioning 和 running 成员使用共
 ## 理解实现
 
 <details>
-<summary>实现细节——点击展开</summary>
+<summary>实现细节--点击展开</summary>
 
 Client export 通过 Cordis effect 注册 locale dictionary 与一个 conversation-header slot；它不挂载任何 Remote namespace。Dispose plugin fiber 会移除这两项 registration。
 
@@ -67,10 +69,10 @@ Client export 通过 Cordis effect 注册 locale dictionary 与一个 conversati
 <a id="further-exploration"></a>
 ## 进一步探索
 
-- [Agent Teams bundle](../agent-team-profile/README.zh.md)——挂载本 Client plugin 的公开 opt-in bundle。
-- [Agent Teams service](../agent-team/README.zh.md)——权威 roster、task 与投影行为。
-- [会话 UI](../../client/ui-conversation/README.zh.md)——稳定 header slot 与 addressed-subagent 导航表层。
-- [实验性包](../README.zh.md)——孵化状态与发布规则。
+- [Agent Teams bundle](../agent-team-profile/README.zh.md)--挂载本 Client plugin 的公开 opt-in bundle。
+- [Agent Teams service](../agent-team/README.zh.md)--权威 roster、task 与投影行为。
+- [会话 UI](../../client/ui-conversation/README.zh.md)--稳定 header slot 与 addressed-subagent 导航表层。
+- [实验性包](../README.zh.md)--孵化状态与发布规则。
 
 -----
 
@@ -87,17 +89,17 @@ Client export 通过 Cordis effect 注册 locale dictionary 与一个 conversati
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **没有 mailbox timeline**——投影视图只承载 roster 与任务；不显示 peer 消息。
-- **晚启用插件** — 在已经打开的会话中启用 Agent Teams 后，需要刷新页面才能接收其 Team 投影。
-- **模型可用性** — 仅当共享 store 包含该成员的持久选择或请求时才显示模型。冷缓存中缺少的值会保持缺失，直到正常 Session 加载或实时更新提供它们。
-- **普通 child continuation**——导航后发送的人类消息使用稳定 addressed-subagent 提示词路径，而不是 Team peer mailbox。
-- **没有 lifecycle 或 workspace control**——panel 不能 spawn、rename、delete 或 interrupt teammate，write scope 仍只是提示性 metadata。
+- **没有 mailbox timeline**--投影视图只承载 roster 与任务；不显示 peer 消息。
+- **晚启用插件** - 在已经打开的会话中启用 Agent Teams 后，需要刷新页面才能接收其 Team 投影。
+- **模型可用性** - 仅当共享 store 包含该成员的持久选择或请求时才显示模型。冷缓存中缺少的值会保持缺失，直到正常 Session 加载或实时更新提供它们。
+- **普通 child continuation**--导航后发送的人类消息使用稳定 addressed-subagent 提示词路径，而不是 Team peer mailbox。
+- **没有 lifecycle 或 workspace control**--panel 不能 spawn、rename、delete 或 interrupt teammate，write scope 仍只是提示性 metadata。
 
 <a id="dev-note"></a>
 ### 开发备注
 
 <details>
-<summary>维护者的工作上下文——点击展开</summary>
+<summary>维护者的工作上下文--点击展开</summary>
 
 无。
 

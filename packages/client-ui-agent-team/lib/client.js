@@ -85,6 +85,25 @@ window.__ModuleLoader__.load({
 				case "deleted": return "idle";
 			}
 		}
+		const WF_SET_MODEL_PATH = "/api/plugins/whaleforce/set-teammate-model";
+		const WF_MODEL_CATALOG_PATH = "/api/plugins/whaleforce/model-catalog";
+		/** Fetch the Host-generation model catalog served by the WhaleForce core routes. */
+		async function fetchModelCatalog() {
+			const response = await fetch(WF_MODEL_CATALOG_PATH);
+			if (!response.ok) throw new Error(`model catalog unavailable: HTTP ${response.status}`);
+			return await response.json();
+		}
+		/** Flatten the catalog into provider-qualified model options for a swap picker. */
+		function catalogModelOptions(catalog) {
+			const options = [];
+			for (const group of catalog?.groups ?? []) {
+				for (const model of group.models ?? []) options.push({
+					value: model.id,
+					label: `${group.name ?? group.id} / ${model.name ?? model.id}`
+				});
+			}
+			return options;
+		}
 		function TeamMemberRow({ member, memberCount, sessionId, useSessions, useSessionStatus, openTeammate, onError, t }) {
 			const model = useSessions((state) => state.projectionsBySession[member.id]?.values.modelSelection?.next?.model);
 			const running = useSessionStatus((state) => state.get(member.id)?.running);
@@ -93,7 +112,33 @@ window.__ModuleLoader__.load({
 			const isCurrent = member.id === sessionId;
 			const highlightCurrent = isCurrent && memberCount > 1;
 			const inert = isCurrent || status === "failed" || status === "provisioning";
-			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+			const swappable = status !== "failed" && status !== "provisioning";
+			const [catalog, setCatalog] = (0, react.useState)(null);
+			const [swapping, setSwapping] = (0, react.useState)(false);
+			const loadCatalog = () => {
+				if (catalog !== null || swapping) return;
+				setSwapping(true);
+				fetchModelCatalog().then(setCatalog).catch((reason) => {
+					onError(String(reason));
+				}).finally(() => {
+					setSwapping(false);
+				});
+			};
+			const swapModel = (nextModel) => {
+				setSwapping(true);
+				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: member.id, target: member.name, model: nextModel }) }).then((response) => {
+					if (!response.ok) return response.json().then((body) => {
+						throw new Error(body?.error ?? `HTTP ${response.status}`);
+					});
+				}).catch((reason) => {
+					onError(String(reason));
+				}).finally(() => {
+					setSwapping(false);
+				});
+			};
+			return (0, react_jsx_runtime.jsxs)("div", {
+				style: { display: "flex", flexDirection: "column", gap: 2 },
+				children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
 				label: t("open"),
 				side: "bottom",
 				gap: 4,
@@ -139,7 +184,90 @@ window.__ModuleLoader__.load({
 							})
 						]
 					})]
-				})
+				})}), swappable && (0, react_jsx_runtime.jsxs)("span", {
+					onMouseEnter: loadCatalog,
+					onClick: loadCatalog,
+					style: { display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--dsw-alias-label-caption)", alignSelf: "flex-start" },
+					children: [`${t("model")}: `, catalog === null ? (0, react_jsx_runtime.jsx)("span", {
+						children: model ?? t("swapModel")
+					}) : (0, react_jsx_runtime.jsx)("select", {
+						"aria-label": t("swapModel"),
+						title: t("swapModel"),
+						disabled: swapping,
+						value: model ?? "",
+						onChange: (event) => {
+							const next = event.target.value;
+							event.target.value = model ?? "";
+							if (next !== "") swapModel(next);
+						},
+						style: { font: "inherit", fontSize: 11, color: "inherit", background: "transparent", border: 0, maxWidth: 150 },
+						children: [(0, react_jsx_runtime.jsx)("option", {
+							value: model ?? "",
+							children: model ?? t("swapModel")
+						}, "current"), catalogModelOptions(catalog).map((option) => (0, react_jsx_runtime.jsx)("option", {
+							value: option.value,
+							children: option.label
+						}, option.value))]
+					})]
+				})]
+			});
+		}
+		/** Composer-dock model chip for one teammate chat; a swap applies from that teammate's next turn. */
+		function TeamModelChip({ sessionId, useSession, useSessions, t }) {
+			const leadSessionId = useSession((snapshot) => snapshot.subagent?.address.parentSessionId) ?? sessionId;
+			const member = useSessions((state) => state.projectionsBySession[leadSessionId]?.values.agentTeam?.members.find((candidate) => candidate.id === sessionId));
+			const model = useSessions((state) => state.projectionsBySession[sessionId]?.values.modelSelection?.next?.model);
+			const [catalog, setCatalog] = (0, react.useState)(null);
+			const [busy, setBusy] = (0, react.useState)(false);
+			const [chipError, setChipError] = (0, react.useState)(null);
+			if (member === void 0) return null;
+			const loadCatalog = () => {
+				if (catalog !== null || busy) return;
+				setBusy(true);
+				fetchModelCatalog().then(setCatalog).catch((reason) => {
+					setChipError(String(reason));
+				}).finally(() => {
+					setBusy(false);
+				});
+			};
+			const swapModel = (nextModel) => {
+				setBusy(true);
+				setChipError(null);
+				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, target: member.name, model: nextModel }) }).then((response) => {
+					if (!response.ok) return response.json().then((body) => {
+						throw new Error(body?.error ?? `HTTP ${response.status}`);
+					});
+				}).catch((reason) => {
+					setChipError(String(reason));
+				}).finally(() => {
+					setBusy(false);
+				});
+			};
+			return (0, react_jsx_runtime.jsxs)("span", {
+				onMouseEnter: loadCatalog,
+				onClick: loadCatalog,
+				style: { display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 9px", fontSize: 11, borderRadius: 999, border: "1px solid var(--dsw-alias-border-l2)", background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-caption)" },
+				children: [`${t("model")}: `, catalog === null ? (0, react_jsx_runtime.jsx)("span", {
+					children: model ?? t("swapModel")
+				}) : (0, react_jsx_runtime.jsx)("select", {
+					"aria-label": t("swapModel"),
+					title: t("swapModel"),
+					disabled: busy,
+					value: model ?? "",
+					onChange: (event) => {
+						const next = event.target.value;
+						event.target.value = model ?? "";
+						if (next !== "") swapModel(next);
+					},
+					style: { font: "inherit", fontSize: 11, color: "inherit", background: "transparent", border: 0, maxWidth: 140 },
+					children: [(0, react_jsx_runtime.jsx)("option", {
+						value: model ?? "",
+						children: model ?? t("swapModel")
+					}, "current"), catalogModelOptions(catalog).map((option) => (0, react_jsx_runtime.jsx)("option", {
+						value: option.value,
+						children: option.label
+					}, option.value))]
+				}), chipError !== null && (0, react_jsx_runtime.jsx)("small", { children: chipError })]
 			});
 		}
 		/** Task card with a two-line description clamp expanded from a toggle in the meta row. */
@@ -404,6 +532,7 @@ window.__ModuleLoader__.load({
 			roster: "成员",
 			tasks: "共享任务",
 			model: "模型",
+			"swapModel": "更换模型",
 			open: "打开成员会话",
 			current: "当前会话",
 			owner: "Owner",
@@ -432,6 +561,7 @@ window.__ModuleLoader__.load({
 			roster: "Members",
 			tasks: "Shared tasks",
 			model: "Model",
+			"swapModel": "Swap model",
 			open: "Open member conversation",
 			current: "Current chat",
 			owner: "Owner",
@@ -495,6 +625,12 @@ window.__ModuleLoader__.load({
 				locale: NS,
 				inject: () => actions
 			}, TeamAction));
+			ctx.slots.inject("conversation.composer.dock", () => ctx.slots.register({
+				name: "conversation.composer.dock",
+				id: "agent-team-whaleforce-model",
+				order: 25,
+				locale: NS
+			}, TeamModelChip));
 		}
 		//#endregion
 		//#region lib/types/client/index.js

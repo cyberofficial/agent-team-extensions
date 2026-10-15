@@ -1,5 +1,5 @@
 ---
-description: "十个让模型创建、发消息与协调 teammate 的工具，供挂载 WhaleForce Agent Teams 插件的组合使用。"
+description: "十一个让模型创建、发消息、协调 teammate 并更换其模型的工具，供挂载 WhaleForce Agent Teams 插件的组合使用。"
 kind: "package-reference"
 ---
 
@@ -11,7 +11,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 ## 概述
 
-本包让模型创建具名 teammate、向它们发送消息、查看可用状态、等待进展、中断卡住的工作，并通过共享任务板协调。每个团队成员都会获得相同的十个工具，以及在共享工作区协调的指引。当模型只应在你明确要求后运行团队时，选择本包。所有工具都以 `whaleforce_` 前缀重命名，因此本包与旧版 subagent 控件及原版团队工具共存，而不是覆盖它们。本包是实验性包的私有 WhaleForce 品牌包，不提供稳定性保证。
+本包让模型创建具名 teammate、向它们发送消息、查看可用状态、等待进展、中断卡住的工作，并通过共享任务板协调。每个团队成员都会获得相同的十一个工具，以及在共享工作区协调的指引。当模型只应在你明确要求后运行团队时，选择本包。所有工具都以 `whaleforce_` 前缀重命名，因此本包与旧版 subagent 控件及原版团队工具共存，而不是覆盖它们。本包是实验性包的私有 WhaleForce 品牌包，不提供稳定性保证。
 
 ## 目录
 
@@ -27,7 +27,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 <a id="use-this-package"></a>
 ## 使用本包
 
-当模型应该通过工具运行一支团队时，在 `dsh-agent-team-whaleforce-core` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的十个工具，以及相同的协作策略。`whaleforce_spawn_teammate` 在初始任务前加上 teammate 的角色和名字。
+当模型应该通过工具运行一支团队时，在 `dsh-agent-team-whaleforce-core` 之上挂载本包。挂载后，每个团队成员--Lead 与每个 teammate--都会获得相同的十一个工具，以及相同的协作策略。`whaleforce_spawn_teammate` 在初始任务前加上 teammate 的角色和名字。
 
 ### 何时选择
 
@@ -56,15 +56,16 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 ### 模型能做什么
 
-十个工具分为五类能力：
+十一个工具分为六类能力：
 
-- **创建 teammate**——`whaleforce_spawn_teammate` 接收名字、描述与初始任务；只有 Lead 可以调用它。
-- **发送消息**——`whaleforce_send_message` 在最近的步骤边界对运行中的成员进行 steering（中途引导）、启动或恢复非活动成员。
-- **查看与等待**——`whaleforce_list_agents` 返回各成员的 `target` 与可用状态；`whaleforce_wait_agent` 等待下一次团队变化；`whaleforce_interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
-- **管理任务板**——`whaleforce_team_task_create`、`whaleforce_team_task_list`、`whaleforce_team_task_get` 与 `whaleforce_team_task_update` 添加、浏览、读取与更新共享任务。
-- **删除 teammate**——`whaleforce_delete_teammate` 持久移除一个 teammate：停止其 live agent，roster 行消失，其 in-progress 任务回到 pending。名字永久消耗，不可复用。仅限 Lead。
+- **创建 teammate**--`whaleforce_spawn_teammate` 接收名字、描述、初始任务与可选 model；只有 Lead 可以调用它。可选 model 是由 provider 拥有、应用在 Lead 路由之上的模型 id：它要求 spawn provider 接受 per-child agentOptions，ACP 支撑的团队会拒绝携带 model 的 spawn。
+- **发送消息**--`whaleforce_send_message` 在最近的步骤边界对运行中的成员进行 steering（中途引导）、启动或恢复非活动成员。
+- **查看与等待**--`whaleforce_list_agents` 返回各成员的 `target` 与可用状态；`whaleforce_wait_agent` 等待下一次团队变化；`whaleforce_interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
+- **管理任务板**--`whaleforce_team_task_create`、`whaleforce_team_task_list`、`whaleforce_team_task_get` 与 `whaleforce_team_task_update` 添加、浏览、读取与更新共享任务。
+- **删除 teammate**--`whaleforce_delete_teammate` 持久移除一个 teammate：停止其 live agent，roster 行消失，其 in-progress 任务回到 pending。名字永久消耗，不可复用。仅限 Lead。
+- **更换 teammate 模型**--`whaleforce_set_teammate_model` 为某个 teammate 更换其下一轮次使用的模型（仅限 Lead）。已在执行中的步骤保持当前模型不变，冷恢复该 teammate 的会话后，更换不会保留。不可用的模型以 `TEAM_MODEL_UNAVAILABLE` 失败。
 
-创建和列表结果使用 `target` 标识成员，不包含成员 Session ID。可将该值用于消息和中断调用，或任务工具的 `owner` 参数；任务的 `ownerName` 使用相同值。`inactive` 表示没有轮次在执行，包括已加载和需要恢复的成员；它不表示任务完成或结果。`provisioning` 与 `failed` 描述成员创建状态。任何成员都可以给任何其他成员发消息并使用任务板；只有 Lead 可以创建、中断与删除 teammate。任务更新保留领域的 owner 与 revision 校验，因此过期的编辑会被拒绝，而不是覆盖更新的成果。
+创建和列表结果使用 `target` 标识成员，不包含成员 Session ID。可将该值用于消息和中断调用，或任务工具的 `owner` 参数；任务的 `ownerName` 使用相同值。`inactive` 表示没有轮次在执行，包括已加载和需要恢复的成员；它不表示任务完成或结果。`provisioning` 与 `failed` 描述成员创建状态。任何成员都可以给任何其他成员发消息并使用任务板；只有 Lead 可以创建、中断、删除 teammate 并更换其模型。任务更新保留领域的 owner 与 revision 校验，因此过期的编辑会被拒绝，而不是覆盖更新的成果。
 
 ### 成功与失败的表现
 
@@ -76,7 +77,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 ## 理解实现
 
 <details>
-<summary>实现细节——点击展开</summary>
+<summary>实现细节--点击展开</summary>
 
 本节解释适配器背后的设计决策并指出实现它们的代码位置；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
@@ -94,12 +95,12 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：配置、固定策略文本与十个 scoped 工具注册 |
-| — | 不发布运行时不变式伴生入口；Team 服务拥有持久化与授权关系。 |
+| [`src/index.ts`](src/index.ts) | 插件入口：配置、固定策略文本与十一个 scoped 工具注册 |
+| - | 不发布运行时不变式伴生入口；Team 服务拥有持久化与授权关系。 |
 
 ### 策略与工具
 
-member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作规则；固定文本与十个工具注册都声明在 [`src/index.ts`](src/index.ts)。十个工具 schema 注册在发布时被识别为 Team member 的 scope 中。scoped 注册使用带 `whaleforce_` 前缀的名称，因此不会覆盖旧全局 continuable-subagent 控件。
+member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作规则；固定文本与十一个工具注册都声明在 [`src/index.ts`](src/index.ts)。十一个工具 schema 注册在发布时被识别为 Team member 的 scope 中。scoped 注册使用带 `whaleforce_` 前缀的名称，因此不会覆盖旧全局 continuable-subagent 控件。
 
 ### 按作用域注册与拆除
 
@@ -114,10 +115,10 @@ member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作�
 
 当包级约定不够用时阅读以下页面。它们从领域服务逐步进入精确 schema 与设计背后的决策。
 
-- dsh-agent-team-whaleforce-core 包——这些工具背后的 `ctx.agentTeamsClone` 领域服务。
-- [Agent Teams 子系统](../../../docs/subsystems/agent-team.zh.md)——持久 Team 类型与服务 API。
-- [生成的工具目录](../../../docs/tool-catalog.zh.md#dsh-agent-team-whaleforce-tools)——模型接收的每个工具 schema。
-- [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.zh.md)——模型侧、scoping 与隔离决策。
+- dsh-agent-team-whaleforce-core 包--这些工具背后的 `ctx.agentTeamsClone` 领域服务。
+- [Agent Teams 子系统](../../../docs/subsystems/agent-team.zh.md)--持久 Team 类型与服务 API。
+- [生成的工具目录](../../../docs/tool-catalog.zh.md#dsh-agent-team-whaleforce-tools)--模型接收的每个工具 schema。
+- [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.zh.md)--模型侧、scoping 与隔离决策。
 
 -----
 
@@ -128,11 +129,11 @@ member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作�
 
 #### 模型看到什么
 
-一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部十个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`whaleforce_spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse whaleforce_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use whaleforce_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use whaleforce_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。
+一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部十一个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`whaleforce_spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse whaleforce_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use whaleforce_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use whaleforce_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。
 
 #### Token 影响
 
-每次 Team member 请求都有固定策略与 schema 成本。初始身份文本随普通历史经历后续步骤、冷恢复和压缩；插件不扫描或重新插入它。工具调用会增加紧凑 JSON roster、task、wait 或 receipt 结果。Peer 内容由 Team 领域保留在 target 历史中。
+每次 Team member 请求都有固定策略与 schema 成本。初始身份文本随普通历史经历后续步骤、冷恢复和压缩；插件不扫描或重新插入它。工具调用会增加紧凑 JSON roster、task、wait 或 receipt 结果。Peer 内容由 Team 领域保留在 target 历史中。`whaleforce_set_teammate_model` 更换模型后的首次请求会在新模型上重新支付 input token。
 
 #### KV Cache 影响
 
@@ -142,20 +143,20 @@ provider／model、共享 system 策略和工具 schema 相同时，fork 保留�
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **一次性子代理工具可见性**——进程内一次性子代理在发布后才获得 subagent descriptor。Team 安装因此可能将它们误认作 Lead 并暴露 Team 策略和工具。descriptor 将它们识别为非成员后，调用会被拒绝。安装时序修复留待以后处理。
+- **一次性子代理工具可见性**--进程内一次性子代理在发布后才获得 subagent descriptor。Team 安装因此可能将它们误认作 Lead 并暴露 Team 策略和工具。descriptor 将它们识别为非成员后，调用会被拒绝。安装时序修复留待以后处理。
 
 这些限制说明策略与工具无法为一支团队保证什么。它们是当前包约束，不是与其他协作方式的对比。
 
-- **提示词策略只负责协调，不负责 confinement**——它无法阻止 Bash 或外部进程写入重叠文件。
-- **不会自主创建 Team**——除非用户明确要求，普通任务不会触发 delegation。
-- **没有 Web 控制功能**——浏览器 roster 与任务板呈现不属于该运行时包。
-- **实验原型，无稳定性承诺**——本包是公开发布的实验性包的私有 WhaleForce 品牌包，孵化期间 schema 仍可自由变更。
+- **提示词策略只负责协调，不负责 confinement**--它无法阻止 Bash 或外部进程写入重叠文件。
+- **不会自主创建 Team**--除非用户明确要求，普通任务不会触发 delegation。
+- **没有 Web 控制功能**--浏览器 roster 与任务板呈现不属于该运行时包。
+- **实验原型，无稳定性承诺**--本包是公开发布的实验性包的私有 WhaleForce 品牌包，孵化期间 schema 仍可自由变更。
 
 <a id="dev-note"></a>
 ### 开发备注
 
 <details>
-<summary>维护者的工作上下文——点击展开</summary>
+<summary>维护者的工作上下文--点击展开</summary>
 
 无。
 

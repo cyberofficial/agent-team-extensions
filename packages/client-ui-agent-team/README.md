@@ -1,5 +1,5 @@
 ---
-description: "Use and debug the experimental Web Agent Teams roster, shared task board, and teammate navigation panel."
+description: "Use and debug the experimental Web Agent Teams roster, shared task board, teammate navigation panel, and per-member model controls."
 kind: "package-reference"
 ---
 
@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package adds an Agent Teams action to the Web conversation header, where a user can inspect the current roster, inspect the shared task board, and navigate into a teammate's conversation. It reads the Lead Session's `agentTeam` projection from the shared Session store, where Host projection frames keep it current without a refresh control, and keeps ordinary child-history navigation on the stable addressed-subagent path. Choose it through the published experimental Agent Teams bundle. The browser projection does not extend the stable API Proxy, store Team state, or register model-facing input.
+This package adds an Agent Teams action to the Web conversation header, where a user can inspect the current roster, inspect the shared task board, navigate into a teammate's conversation, and change a teammate's model. It reads the Lead Session's `agentTeam` projection from the shared Session store, where Host projection frames keep it current without a refresh control, and keeps ordinary child-history navigation on the stable addressed-subagent path. Choose it through the published experimental Agent Teams bundle. The browser projection does not extend the stable API Proxy, store Team state, or register model-facing input.
 
 ## Table of Contents
 
@@ -35,6 +35,8 @@ The panel shows the Lead Session's roster and task board from the shared Session
 
 Roster rows show durable names and phases. Provisioning and running members use the shared ongoing loader, inactive members use a person icon, and failed members use error. Live Session status supplies running activity; the shared `modelSelection` projection supplies a model when available. The current conversation carries a Current chat tag and cannot be selected. Selecting the Lead from a teammate conversation opens the Lead Session directly. Selecting an active teammate opens its ordinary continuable child address. The Host validates the parent, child, and mode when history opens; later human prompts use the same addressed-subagent conversation.
 
+The Team Panel roster cards carry a per-member model control, and teammate-chat composers show a model chip. Both call POST `/api/plugins/whaleforce/set-teammate-model`, with the model list from GET `/api/plugins/whaleforce/model-catalog`.
+
 ### Inspect the task board
 
 Ready pending tasks use idle, blocked pending tasks use warning, in-progress tasks use ongoing, and completed tasks use done.
@@ -47,7 +49,7 @@ The read-only task board shows task identity, owner, blockers, readiness, adviso
 ## Understand the implementation
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>Implementation internals - click to expand</summary>
 
 The Client export registers its locale dictionaries and one conversation-header slot through Cordis effects; it mounts no Remote namespace. Disposing the plugin fiber removes both registrations.
 
@@ -67,10 +69,10 @@ The panel renders outside the conversation container and stays within the viewpo
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [Agent Teams bundle](../agent-team-profile/README.md) — the published opt-in bundle that mounts this Client plugin.
-- [Agent Teams service](../agent-team/README.md) — authoritative roster, task, and projection behavior.
-- [Conversation UI](../../client/ui-conversation/README.md) — the stable header slot and addressed-subagent navigation surface.
-- [Experimental packages](../README.md) — incubation status and publication policy.
+- [Agent Teams bundle](../agent-team-profile/README.md) - the published opt-in bundle that mounts this Client plugin.
+- [Agent Teams service](../agent-team/README.md) - authoritative roster, task, and projection behavior.
+- [Conversation UI](../../client/ui-conversation/README.md) - the stable header slot and addressed-subagent navigation surface.
+- [Experimental packages](../README.md) - incubation status and publication policy.
 
 -----
 
@@ -87,17 +89,17 @@ No direct effect; the Team tools and ordinary conversation submission own any la
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **No mailbox timeline** — the projection view carries roster and tasks only; peer messages are not shown.
-- **Late plugin activation** — after enabling Agent Teams in an already-open conversation, reload the page to receive its Team projection.
-- **Model availability** — a model appears only when the shared store has a durable selection or request for that member. Missing cold-cache values stay absent until normal Session loading or a live update supplies them.
-- **Ordinary child continuation** — a human message sent after navigation uses the stable addressed-subagent prompt path, not the Team peer mailbox.
-- **No lifecycle or workspace controls** — the panel cannot spawn, rename, delete, or interrupt teammates, and write scopes remain advisory metadata.
+- **No mailbox timeline** - the projection view carries roster and tasks only; peer messages are not shown.
+- **Late plugin activation** - after enabling Agent Teams in an already-open conversation, reload the page to receive its Team projection.
+- **Model availability** - a model appears only when the shared store has a durable selection or request for that member. Missing cold-cache values stay absent until normal Session loading or a live update supplies them.
+- **Ordinary child continuation** - a human message sent after navigation uses the stable addressed-subagent prompt path, not the Team peer mailbox.
+- **No lifecycle or workspace controls** - the panel cannot spawn, rename, delete, or interrupt teammates, and write scopes remain advisory metadata.
 
 <a id="dev-note"></a>
 ### Dev Note
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>Working context for maintainers - click to expand</summary>
 
 None.
 

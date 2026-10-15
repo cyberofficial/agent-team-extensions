@@ -11,7 +11,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-agent-team-whaleforce-core` 把一个编码会话变成一个小型工作团队：会话中的 agent 成为 Lead，创建具名 teammate 处理委派的工作，与它们交换持久消息，并在公共任务板上跟踪共享任务。消息与任务状态能挺过崩溃、reload 与中断，因此离线的 teammate 会在恢复后收到排队的消息。它本身不提供任何工具——请挂载兄弟包 `dsh-agent-team-whaleforce-tools`，让模型能够创建 teammate、给它们发消息并使用任务板。它是实验性包的私有改名 WhaleForce 品牌包、不承诺稳定性，并且需要持久会话存储才能激活。
+`dsh-agent-team-whaleforce-core` 把一个编码会话变成一个小型工作团队：会话中的 agent 成为 Lead，创建具名 teammate 处理委派的工作，与它们交换持久消息，并在公共任务板上跟踪共享任务。消息与任务状态能挺过崩溃、reload 与中断，因此离线的 teammate 会在恢复后收到排队的消息。它本身不提供任何工具--请挂载兄弟包 `dsh-agent-team-whaleforce-tools`，让模型能够创建 teammate、给它们发消息并使用任务板。它是实验性包的私有改名 WhaleForce 品牌包、不承诺稳定性，并且需要持久会话存储才能激活。
 
 ## 目录
 
@@ -31,7 +31,7 @@ kind: "package-reference"
 
 ### 何时选择
 
-当多个 agent 必须在同一个共享工作区协作、且 roster、消息与任务状态需要挺过崩溃与重启时，选择它。当 teammate 需要独立工作目录、多个进程需要协调同一支团队、或任务 owner 需要自动释放时，请不要选择——这些都不受支持。团队功能需要持久会话存储才能激活。
+当多个 agent 必须在同一个共享工作区协作、且 roster、消息与任务状态需要挺过崩溃与重启时，选择它。当 teammate 需要独立工作目录、多个进程需要协调同一支团队、或任务 owner 需要自动释放时，请不要选择--这些都不受支持。团队功能需要持久会话存储才能激活。
 
 ### 最小工作配置
 
@@ -40,13 +40,13 @@ kind: "package-reference"
 对现有组合的最小增量是持久会话存储加两个 Team 包：
 
 ```yaml
-# smallest team setup — durable storage plus both Team packages
+# smallest team setup - durable storage plus both Team packages
 - name: '@deepseek-ai/dsh-session-persistence-jsonl'
 - name: 'dsh-agent-team-whaleforce-core'
 - name: 'dsh-agent-team-whaleforce-tools'
 ```
 
-工具安装后，模型会按请求完成其余工作——例如先「创建一个名为 reviewer 的 teammate 检查 diff」，再「把变更摘要发给 reviewer」。所有限制都是可选的，并在启动时校验：
+工具安装后，模型会按请求完成其余工作--例如先「创建一个名为 reviewer 的 teammate 检查 diff」，再「把变更摘要发给 reviewer」。所有限制都是可选的，并在启动时校验：
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
@@ -60,17 +60,19 @@ kind: "package-reference"
 
 ### Teammate
 
-请 Lead 创建 teammate：给它一个唯一的小写名字（例如 `reviewer`）并描述其职责。teammate 可以 fresh 启动（不携带 Lead 对话的任何记忆），也可以作为 fork 启动（继承 Lead 已完成的轮次）；创建请求决定用哪种。teammate 名字是永久的——即使创建失败的 teammate 也保留其名字，任何名字都不会被复用。
+请 Lead 创建 teammate：给它一个唯一的小写名字（例如 `reviewer`）并描述其职责。teammate 可以 fresh 启动（不携带 Lead 对话的任何记忆），也可以作为 fork 启动（继承 Lead 已完成的轮次）；创建请求决定用哪种。teammate 名字是永久的--即使创建失败的 teammate 也保留其名字，任何名字都不会被复用。
 
 roster 显示每个成员的职责（`lead` 或 `teammate`）与当前状态：`running`、`inactive`（当前没有执行轮次，包括已加载和仅存储的成员）、`provisioning` 或 `failed`。未加载的成员会在唤醒后收到其消息。
 
 只有 Lead 可以创建 teammate 或中断它们。
 
+Lead 还可以通过仅限 Lead 的 `setTeammateModel` roster 操作，为某个 teammate 更换其下一轮次使用的模型：已在执行中的步骤保持当前模型不变，冷恢复该 teammate 的会话后，更换不会保留；不可用的模型以 `TEAM_MODEL_UNAVAILABLE` 失败。服务为此提供两条 host 路由：POST `/api/plugins/whaleforce/set-teammate-model` 应用更换，GET `/api/plugins/whaleforce/model-catalog` 返回可用模型列表。
+
 ### teammate 之间的消息
 
 任何成员都可以向任何其他成员或 Lead 发送消息。live 成员会立即收到；离线成员的消息会排队，并在其恢复后到达。消息不会丢失，也不会重复投递。
 
-每条消息都使用 Steer：running target 在最近的步骤边界收到消息，inactive target 在已加载时启动一个轮次，否则冷恢复。发送方始终能看到结果——target inbox 已接受，或在投递暂时不可用时保留为 queued。排队的消息已经安全存储，因此绝不能重发。
+每条消息都使用 Steer：running target 在最近的步骤边界收到消息，inactive target 在已加载时启动一个轮次，否则冷恢复。发送方始终能看到结果--target inbox 已接受，或在投递暂时不可用时保留为 queued。排队的消息已经安全存储，因此绝不能重发。
 
 ### 共享任务板
 
@@ -78,11 +80,11 @@ roster 显示每个成员的职责（`lead` 或 `teammate`）与当前状态：`
 
 任务有 owner：成员 claim 任务开始工作，完成后标记完成、释放回板或重新打开；Lead 可以把任务分配给任意成员。每次变更都是 compare-and-set：基于过期副本的更新会被拒绝，因此两个成员不会悄悄覆盖彼此的成果。
 
-当两个 in-progress 任务计划触及重叠路径时，文件提示会产生警告——它们绝不阻止任何操作。已删除任务保留在历史中，但从活动列表中消失。
+当两个 in-progress 任务计划触及重叠路径时，文件提示会产生警告--它们绝不阻止任何操作。已删除任务保留在历史中，但从活动列表中消失。
 
 ### 等待与中断
 
-成员可以等待下一次团队变化——teammate 的状态、新消息或任务更新——而不必反复轮询；等待只报告是否超时，调用方随后重新读取当前状态。
+成员可以等待下一次团队变化--teammate 的状态、新消息或任务更新--而不必反复轮询；等待只报告是否超时，调用方随后重新读取当前状态。
 
 Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息；任务归属不变。
 
@@ -96,7 +98,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 ## 理解实现
 
 <details>
-<summary>实现细节——点击展开</summary>
+<summary>实现细节--点击展开</summary>
 
 本节解释服务背后的设计决策并指出实现它们的代码位置；可观察行为已在[使用本包](#use-this-package)中完整说明。
 
@@ -106,7 +108,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 - **持久日志，派生状态。** Lead 会话日志是唯一真源；roster、mailbox 与任务状态每次读取都从中回放。
 - **进程内归属。** 所有协作都位于单一进程；保证是重试加去重，绝不是跨进程共识。
-- **显式权限。** 每个服务方法都接收确切的实时调用方 `Agent`；只有 Lead 可以 spawn、reassign 或 interrupt。
+- **显式权限。** 每个服务方法都接收确切的实时调用方 `Agent`；只有 Lead 可以 spawn、reassign、interrupt 或更换 teammate 的模型。
 - **超出上限时明确失败。** 每个限制都是经过校验的部署值，耗尽时报告类型化错误，而不是复用 id 或名字。
 
 [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.zh.md)负责身份、mailbox、任务与共享 checkout 决策。
@@ -165,10 +167,10 @@ dispose 会关闭准入、中止并等待已获准的创建与 mailbox dispatch 
 
 当包级约定不够用时阅读以下页面。它们从共享子系统类型逐步进入工具表面与设计背后的决策。
 
-- [Agent Teams 子系统](../../../docs/subsystems/agent-team.zh.md)——持久 Team 类型与 `ctx.agentTeamsClone` 服务 API。
-- [tool-agent-team 包](../tool-agent-team/README.zh.md)——让模型创建 teammate、向其发送消息并进行协调的工具。
-- [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.zh.md)——身份、mailbox、任务与共享 checkout 决策。
-- [实验包决策](../../../.agents/notes/implemented/architecture/2026-08-18-experimental-agent-teams-packages.zh.md)——位置、公开发布与依赖隔离。
+- [Agent Teams 子系统](../../../docs/subsystems/agent-team.zh.md)--持久 Team 类型与 `ctx.agentTeamsClone` 服务 API。
+- [tool-agent-team 包](../tool-agent-team/README.zh.md)--让模型创建 teammate、向其发送消息并进行协调的工具。
+- [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.zh.md)--身份、mailbox、任务与共享 checkout 决策。
+- [实验包决策](../../../.agents/notes/implemented/architecture/2026-08-18-experimental-agent-teams-packages.zh.md)--位置、公开发布与依赖隔离。
 
 -----
 
@@ -203,19 +205,19 @@ Peer 消息追加在 target 可复用历史前缀之后。冷恢复会先复用�
 
 这些限制说明一支团队目前不能做什么、或哪些方面需要特别的运维关注。它们是当前包约束，不是与其他协作机制的对比。
 
-- **完整视图广播** — 每次 roster 或任务变化都会把完整 roster 和未删除任务板（含描述）发给所有已连接浏览器，即使它正在查看其他 Session。
-- **实验原型，无稳定性承诺**——本包公开发布，但孵化期间约定仍可自由变更。
-- **单进程、共享 checkout**——成员共享 cwd，修改立即可见；本包不提供 worktree、远端成员、merge 或文件锁。
-- **write scope 仅作提示**——Bash、formatter、代码生成器与直接外部写入可以绕过文件版本检查；Lead 必须协调 owner 并检查最终 diff。
-- **扁平 roster，Lead 掌控生命周期**——只有 Lead 可以创建直接 teammate；不支持嵌套 Team 或重命名。Lead 可以持久删除已就绪的 teammate 并释放其 roster 槽位；名字永不复用。
-- **不会自动释放 owner**——成员不活动、interrupt、进程退出与工作失败都不会释放任务 owner。
-- **mailbox 不保证跨进程 exactly-once**——不支持多个 harness 进程并发操作同一 Team。
+- **完整视图广播** - 每次 roster 或任务变化都会把完整 roster 和未删除任务板（含描述）发给所有已连接浏览器，即使它正在查看其他 Session。
+- **实验原型，无稳定性承诺**--本包公开发布，但孵化期间约定仍可自由变更。
+- **单进程、共享 checkout**--成员共享 cwd，修改立即可见；本包不提供 worktree、远端成员、merge 或文件锁。
+- **write scope 仅作提示**--Bash、formatter、代码生成器与直接外部写入可以绕过文件版本检查；Lead 必须协调 owner 并检查最终 diff。
+- **扁平 roster，Lead 掌控生命周期**--只有 Lead 可以创建直接 teammate；不支持嵌套 Team 或重命名。Lead 可以持久删除已就绪的 teammate 并释放其 roster 槽位；名字永不复用。
+- **不会自动释放 owner**--成员不活动、interrupt、进程退出与工作失败都不会释放任务 owner。
+- **mailbox 不保证跨进程 exactly-once**--不支持多个 harness 进程并发操作同一 Team。
 
 <a id="dev-note"></a>
 ### 开发备注
 
 <details>
-<summary>维护者的工作上下文——点击展开</summary>
+<summary>维护者的工作上下文--点击展开</summary>
 
 本开发备注是维护者的工作上下文，明确不具权威性。
 

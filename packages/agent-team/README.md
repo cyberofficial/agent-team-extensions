@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-agent-team-whaleforce-core` turns one coding session into a small working team: the session's agent becomes the Lead, creates named teammates for delegated work, exchanges durable messages with them, and tracks shared tasks on a common board. Messages and task state survive crashes, reloads, and interruptions, so a teammate that was offline receives its queued messages when it resumes. It provides no tools of its own — mount the sibling `dsh-agent-team-whaleforce-tools` so the model can create teammates, message them, and use the task board. It is a private renamed rebrand of the experimental package, carries no stability promise, and needs durable session storage to activate.
+`dsh-agent-team-whaleforce-core` turns one coding session into a small working team: the session's agent becomes the Lead, creates named teammates for delegated work, exchanges durable messages with them, and tracks shared tasks on a common board. Messages and task state survive crashes, reloads, and interruptions, so a teammate that was offline receives its queued messages when it resumes. It provides no tools of its own - mount the sibling `dsh-agent-team-whaleforce-tools` so the model can create teammates, message them, and use the task board. It is a private renamed rebrand of the experimental package, carries no stability promise, and needs durable session storage to activate.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ Add this package to a composition when one agent should run a small team of name
 
 ### When to choose it
 
-Choose it when several agents must cooperate on one shared workspace and their roster, messages, and task state must survive crashes and restarts. Avoid it when teammates need separate working directories, when several processes must coordinate over one team, or when a task owner should be released automatically — none of those are supported. The team features need durable session storage to activate.
+Choose it when several agents must cooperate on one shared workspace and their roster, messages, and task state must survive crashes and restarts. Avoid it when teammates need separate working directories, when several processes must coordinate over one team, or when a task owner should be released automatically - none of those are supported. The team features need durable session storage to activate.
 
 ### Smallest working setup
 
@@ -40,13 +40,13 @@ Choose it when several agents must cooperate on one shared workspace and their r
 The smallest addition to an existing composition is durable session storage plus both Team packages:
 
 ```yaml
-# smallest team setup — durable storage plus both Team packages
+# smallest team setup - durable storage plus both Team packages
 - name: '@deepseek-ai/dsh-session-persistence-jsonl'
 - name: 'dsh-agent-team-whaleforce-core'
 - name: 'dsh-agent-team-whaleforce-tools'
 ```
 
-With the tools installed, the model does the rest on request — for example, "create a teammate named reviewer to check the diff", then "send reviewer the change summary". All limits are optional and validated at startup:
+With the tools installed, the model does the rest on request - for example, "create a teammate named reviewer to check the diff", then "send reviewer the change summary". All limits are optional and validated at startup:
 
 | Field | Default | Meaning |
 |---|---|---|
@@ -60,17 +60,19 @@ The generated [configuration catalog](../../../docs/config-catalog.md#dsh-agent-
 
 ### Teammates
 
-Ask the Lead to create a teammate: give it a unique lowercase name such as `reviewer` and describe its job. A teammate starts fresh with no memory of the Lead's conversation, or as a fork that inherits the Lead's completed turns; the creation request chooses which. Teammate names are permanent — even a teammate whose creation failed keeps its name, and no name is ever reused.
+Ask the Lead to create a teammate: give it a unique lowercase name such as `reviewer` and describe its job. A teammate starts fresh with no memory of the Lead's conversation, or as a fork that inherits the Lead's completed turns; the creation request chooses which. Teammate names are permanent - even a teammate whose creation failed keeps its name, and no name is ever reused.
 
 The roster shows every member with its role (`lead` or `teammate`) and current status: `running`, `inactive` (no turn is executing, whether loaded or stored), `provisioning`, or `failed`. A member that is not loaded receives its messages when it wakes.
 
 Only the Lead can create teammates or interrupt them.
 
+The Lead can also change one teammate's model for its next turn through the Lead-only `setTeammateModel` roster operation: a step already in flight keeps its current model, and the swap is not retained across a cold resume of the teammate's session. An unavailable model fails with `TEAM_MODEL_UNAVAILABLE`. The service serves two host routes for this: POST `/api/plugins/whaleforce/set-teammate-model` applies the swap, and GET `/api/plugins/whaleforce/model-catalog` returns the available model list.
+
 ### Messages between teammates
 
 Any member can send a message to any other member or to the Lead. A live member receives it immediately; an offline member's messages queue and arrive when it resumes. Messages are never lost and never delivered twice.
 
-Every message uses Steer: a running target receives it at the nearest step boundary; an inactive target starts a turn if loaded or cold-resumes otherwise. The sender always sees the outcome — accepted by the target inbox, or retained as queued when delivery is temporarily unavailable. A queued message is already safely stored, so it must not be resent.
+Every message uses Steer: a running target receives it at the nearest step boundary; an inactive target starts a turn if loaded or cold-resumes otherwise. The sender always sees the outcome - accepted by the target inbox, or retained as queued when delivery is temporarily unavailable. A queued message is already safely stored, so it must not be resent.
 
 ### Shared task board
 
@@ -78,11 +80,11 @@ Any member can add a task with a title, details, optional dependencies on other 
 
 Tasks have an owner: a member claims a task to start work, completes it when done, releases it back, or reopens it; the Lead can assign a task to any member. Every change is compare-and-set: an update based on an outdated copy is rejected, so two members cannot silently overwrite each other's work.
 
-File hints produce warnings when two in-progress tasks plan to touch overlapping paths — they never block anything. Deleted tasks remain in history but disappear from the active list.
+File hints produce warnings when two in-progress tasks plan to touch overlapping paths - they never block anything. Deleted tasks remain in history but disappear from the active list.
 
 ### Waiting and interruption
 
-A member can wait for the next team change — a teammate's status, an incoming message, or a task update — instead of polling repeatedly; the wait reports only whether it timed out, and the caller re-reads the current state afterward.
+A member can wait for the next team change - a teammate's status, an incoming message, or a task update - instead of polling repeatedly; the wait reports only whether it timed out, and the caller re-reads the current state afterward.
 
 The Lead can stop a teammate's current turn without deleting its queued messages; task ownership is unchanged.
 
@@ -96,7 +98,7 @@ Success looks like a teammate appearing in the roster, a message reporting `acce
 ## Understand the implementation
 
 <details>
-<summary>Implementation internals — click to expand</summary>
+<summary>Implementation internals - click to expand</summary>
 
 This section explains the design decisions behind the service and points at the code that realizes them; the observable behavior is fully covered in [Use this package](#use-this-package).
 
@@ -106,7 +108,7 @@ The service is built on one separation and three commitments:
 
 - **Durable log, derived state.** The Lead Session log is the single source of truth; roster, mailbox, and task state are replayed from it on every read.
 - **Process-local ownership.** All coordination lives in one process; the guarantee is retry plus de-duplication, never cross-process consensus.
-- **Explicit authority.** Every service method takes the exact live calling `Agent`; only the Lead spawns, reassigns, or interrupts.
+- **Explicit authority.** Every service method takes the exact live calling `Agent`; only the Lead spawns, reassigns, interrupts, or changes a teammate's model.
 - **Bounds that fail loud.** Every limit is a validated deployment value, and exhaustion reports a typed error instead of reusing an id or name.
 
 The [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.md) owns the identity, mailbox, task, and shared-checkout decisions.
@@ -165,10 +167,10 @@ Disposal closes admission, aborts and awaits admitted creation and mailbox-dispa
 
 Read these pages when the package-level contract is not enough. They move from the shared subsystem types to the tool surface and the decisions behind the design.
 
-- [Agent Teams subsystem](../../../docs/subsystems/agent-team.md) — durable Team types and the `ctx.agentTeamsClone` service API.
-- [tool-agent-team package](../tool-agent-team/README.md) — the tools that let the model create, message, and coordinate teammates.
-- [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.md) — identity, mailbox, task, and shared-checkout decisions.
-- [Experimental package decision](../../../.agents/notes/implemented/architecture/2026-08-18-experimental-agent-teams-packages.md) — placement, publication, and dependency isolation.
+- [Agent Teams subsystem](../../../docs/subsystems/agent-team.md) - durable Team types and the `ctx.agentTeamsClone` service API.
+- [tool-agent-team package](../tool-agent-team/README.md) - the tools that let the model create, message, and coordinate teammates.
+- [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-05-agent-teams.md) - identity, mailbox, task, and shared-checkout decisions.
+- [Experimental package decision](../../../.agents/notes/implemented/architecture/2026-08-18-experimental-agent-teams-packages.md) - placement, publication, and dependency isolation.
 
 -----
 
@@ -203,19 +205,19 @@ Peer messages append after the target's reusable history prefix. Cold resume reu
 
 These limits describe what a team cannot do yet or what needs special operational care. They are current package constraints, not a comparison with other coordination mechanisms.
 
-- **Whole-view broadcasts** — each roster or task change sends the complete roster and non-deleted task board, including descriptions, to every connected browser, even when it is viewing another Session.
-- **Experimental prototype with no stability promise** — the package is public, but its contracts can change freely while it incubates.
-- **One process and one shared checkout** — members share cwd and observe edits immediately; this package provides no worktree, remote member, merge, or filesystem lock.
-- **Advisory write scopes** — Bash, formatters, code generators, and direct external writers can bypass filesystem version checks; Leads must coordinate ownership and review the final diff.
-- **Flat roster, Lead-owned lifecycle** — only the Lead creates direct teammates; there is no nested Team or rename. The Lead can durably delete a settled teammate, freeing its roster slot; names are never reused.
-- **No automatic ownership release** — inactivity, interruption, process exit, and failed work do not release a task owner.
-- **Mailbox is not cross-process exactly-once** — concurrent harness processes over one Team are unsupported.
+- **Whole-view broadcasts** - each roster or task change sends the complete roster and non-deleted task board, including descriptions, to every connected browser, even when it is viewing another Session.
+- **Experimental prototype with no stability promise** - the package is public, but its contracts can change freely while it incubates.
+- **One process and one shared checkout** - members share cwd and observe edits immediately; this package provides no worktree, remote member, merge, or filesystem lock.
+- **Advisory write scopes** - Bash, formatters, code generators, and direct external writers can bypass filesystem version checks; Leads must coordinate ownership and review the final diff.
+- **Flat roster, Lead-owned lifecycle** - only the Lead creates direct teammates; there is no nested Team or rename. The Lead can durably delete a settled teammate, freeing its roster slot; names are never reused.
+- **No automatic ownership release** - inactivity, interruption, process exit, and failed work do not release a task owner.
+- **Mailbox is not cross-process exactly-once** - concurrent harness processes over one Team are unsupported.
 
 <a id="dev-note"></a>
 ### Dev Note
 
 <details>
-<summary>Working context for maintainers — click to expand</summary>
+<summary>Working context for maintainers - click to expand</summary>
 
 This Dev Note is working context for maintainers and is explicitly non-authoritative.
 

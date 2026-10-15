@@ -7,6 +7,7 @@ import { brandString } from "@deepseek-ai/dsh-brand";
 import { steerHostSubagentPrompt } from "@deepseek-ai/dsh-subagent/internal";
 import { foldSubagentDescriptor } from "@deepseek-ai/dsh-subagent";
 import { z as z$1 } from "zod";
+import { installModelSelection } from "@deepseek-ai/dsh-agent";
 //#region lib/types/error.js
 /** Typed Agent Teams failures. */
 /** Stable failure raised by the Team domain. */
@@ -367,6 +368,8 @@ var TeamRoster = class {
 	lifecycle;
 	maxMembers;
 	inFlightCreations = /* @__PURE__ */ new Set();
+	/** Mutable model-selection references installed on live teammates by setTeammateModel. */
+	modelSelections = /* @__PURE__ */ new WeakMap();
 	/**
 	* @param ctx - Team service context with Agent, Session, persistence, and subagent services.
 	* @param journal - authoritative Lead-log transaction owner.
@@ -558,6 +561,56 @@ var TeamRoster = class {
 		return { previousStatus, memberId: member.id };
 	}
 	/**
+	* Change one live teammate's model for its next turn.
+	* The installed selection overrides provider, model, and reasoning effort at the next
+	* prompt-assembly boundary, so a step already in flight keeps its current model. The
+	* swap is not retained across a cold resume of the teammate's session.
+	* @param caller - exact live Lead Agent.
+	* @param targetName - durable teammate name.
+	* @param model - provider-owned model id the teammate will use from its next turn.
+	* @returns the resolved teammate name and its validated model.
+	*/
+	async setTeammateModel(caller, targetName, model) {
+		const membership = this.membership(caller);
+		if (membership.role !== "lead") throw new TeamError("only the Team Lead can change teammate models", "TEAM_LEAD_REQUIRED");
+		const state = this.journal.state(membership.root);
+		const target = resolveActiveMember(membership.root, state, targetName);
+		if (target.id === membership.root.id) throw new TeamError("the Team Lead cannot swap its own model through the Team", "TEAM_INVALID_TARGET");
+		const live = this.ctx.agents.get(target.id);
+		if (live === void 0) throw new TeamError(`teammate "${target.name}" is not live`, "TEAM_MEMBER_NOT_FOUND");
+		const provider = (live.session.requestHeader()?.config)?.provider ?? live.options.provider ?? "";
+		let selection;
+		try {
+			const llm = this.ctx.get("llm");
+			const resolved = await llm.resolveCallConfig({
+				provider,
+				model
+			});
+			selection = {
+				provider: resolved.provider,
+				model: resolved.model,
+				...resolved.reasoningEffort === void 0 ? {} : { reasoningEffort: resolved.reasoningEffort }
+			};
+		} catch (error) {
+			throw new TeamError(`model "${model}" is unavailable for teammate "${target.name}": ${errorMessage(error)}`, "TEAM_MODEL_UNAVAILABLE");
+		}
+		live.session.append("model/selection", selection);
+		let installed = this.modelSelections.get(live);
+		if (installed === void 0) {
+			installed = {
+				current: void 0,
+				assembled: void 0
+			};
+			installModelSelection(live.ctx, installed);
+			this.modelSelections.set(live, installed);
+		}
+		installed.current = selection;
+		return {
+			target: target.name,
+			model: selection.model
+		};
+	}
+	/**
 	* Group exact live roster children by their current Lead for runtime teardown.
 	* @returns each live Lead and the roster child ids currently in the Agent registry.
 	*/
@@ -618,7 +671,8 @@ var TeamRoster = class {
 				label: description,
 				request: {
 					prompt: request.prompt,
-					parent: root
+					parent: root,
+					...(request.model === void 0 ? {} : { agentOptions: { model: request.model } })
 				},
 				signal
 			});
@@ -1787,6 +1841,41 @@ var TeamService = class extends Service {
 			};
 		}, "agentTeamsClone.runtimeLifecycle()");
 		for (const agent of ctx.agents.list()) this.scheduleRecovery(agent);
+		/* Browser-facing model swap: the shared /api channel has already applied trust and browser auth by the time fetch runs. */
+		ctx.inject(["connection"], (connCtx) => {
+			connCtx.connection.fetch.register({
+				path: "/api/plugins/whaleforce/set-teammate-model",
+				methods: ["POST"],
+				requestBody: "buffered",
+				fetch: async (request) => {
+					const body = await request.json();
+					const child = this.ctx.agents.get(body.sessionId);
+					const parentId = child?.session.header.parentSession;
+					const lead = parentId === void 0 ? void 0 : this.ctx.agents.get(parentId);
+					if (lead === void 0) return Response.json({ error: "teammate session not live" }, { status: 404 });
+					try {
+						const result = await this.setTeammateModel(lead, body.target, body.model);
+						return Response.json(result);
+					} catch (error) {
+						return Response.json({ error: errorMessage(error) }, { status: 400 });
+					}
+				}
+			});
+			connCtx.connection.fetch.register({
+				path: "/api/plugins/whaleforce/model-catalog",
+				methods: ["GET"],
+				requestBody: "buffered",
+				fetch: async () => {
+					try {
+						const controller = this.ctx.get("sessionController");
+						return Response.json(await controller.modelCatalog());
+					} catch (error) {
+						return Response.json({ error: errorMessage(error) }, { status: 502 });
+					}
+				}
+			});
+			ctx.logger.info("agentTeamsClone: model swap routes live at /api/plugins/whaleforce/set-teammate-model and /api/plugins/whaleforce/model-catalog");
+		});
 	}
 	/**
 	* Resolve one exact live Agent's Team role.
@@ -1902,6 +1991,18 @@ var TeamService = class extends Service {
 		}
 		this.activity.notify(membership.id);
 		return { target: targetName.trim(), previousStatus: removed.previousStatus, releasedTasks };
+	}
+	/**
+	* Change one live teammate's model for its next turn.
+	* A step already in flight keeps its current model, and the swap is not retained
+	* across a cold resume of the teammate's session.
+	* @param caller - exact live Lead Agent.
+	* @param targetName - durable teammate name.
+	* @param model - provider-owned model id the teammate will use from its next turn.
+	* @returns the resolved teammate name and its validated model.
+	*/
+	async setTeammateModel(caller, targetName, model) {
+		return await this.roster.setTeammateModel(caller, targetName, model);
 	}
 	/**
 	* Resolve a caller without throwing, used by scoped-tool installation and observers.
