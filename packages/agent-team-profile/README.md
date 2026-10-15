@@ -48,7 +48,7 @@ In an existing profile’s `package.json`, keep `dsh-agent-team-whaleforce-profi
 
 ### What you get
 
-The layer adds the Agent Teams domain and its scoped creation, roster, messaging, interruption, waiting, and task-board tools. Direct delegation uses `whaleforce_spawn_teammate`, which supports fresh and fork context. The `subagent` and `subagent_fork` tools and overlapping global child controls are disabled. Workflow retains the base profile’s `spawn` provider, while the underlying Subagent services and both providers remain available to teammates and workflow.
+The layer adds the Agent Teams domain and its scoped creation, roster, messaging, interruption, deletion, waiting, and task-board tools. Direct delegation uses `whaleforce_spawn_teammate`, which supports fresh and fork context. The `subagent` and `subagent_fork` tools and overlapping global child controls are disabled. Workflow retains the base profile’s `spawn` provider, while the underlying Subagent services and both providers remain available to teammates and workflow.
 
 In Web and Desktop conversations, the [Team UI](../client-ui-agent-team/README.md) displays the member roster and shared task board and opens teammate sessions. The same bundle switch controls the tools and browser UI. The Plugins page reads the bundle's [icon](icon.svg) from its `package.json.icon` declaration, including while the bundle is disabled.
 
@@ -90,7 +90,7 @@ The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied
 
 #### What the model sees
 
-The Team policy and schemas belong to [`dsh-agent-team-whaleforce-tools`](../tool-agent-team/README.md). This bundle changes composition only: Team-scoped `whaleforce_list_agents`, `whaleforce_send_message`, and `whaleforce_interrupt_agent` replace the disabled global continuable-child controls. `whaleforce_spawn_teammate` is the direct delegation tool. Workflow’s `agent()` calls create fresh one-shot children; their prompts must contain the context needed for their tasks.
+The Team policy and schemas belong to [`dsh-agent-team-whaleforce-tools`](../tool-agent-team/README.md). This bundle changes composition only: Team-scoped `whaleforce_list_agents`, `whaleforce_send_message`, and `whaleforce_interrupt_agent` replace the disabled global continuable-child controls. `whaleforce_spawn_teammate` is the direct delegation tool. `whaleforce_delete_teammate` is a Lead-only durable deletion tool: the deleted teammate's name is consumed forever and cannot be reused, the roster slot frees for new members, and the deleted teammate's in-progress tasks return to pending. Workflow’s `agent()` calls create fresh one-shot children; their prompts must contain the context needed for their tasks.
 
 #### Token effect
 

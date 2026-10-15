@@ -445,6 +445,7 @@ var TeamRoster = class {
 			diagnostics: []
 		}];
 		for (const member of state.members) {
+			if (member.phase === "deleted") continue;
 			const live = this.ctx.agents.get(member.id);
 			const model = live?.options.model ?? root.options.model;
 			result.push({
@@ -516,6 +517,47 @@ var TeamRoster = class {
 		return { previousStatus };
 	}
 	/**
+	* Durably remove one settled teammate from the roster and stop its live child.
+	* The teammate name remains permanently consumed; only non-deleted members count toward the member limit.
+	* @param caller - exact live Lead Agent.
+	* @param targetName - durable teammate name.
+	* @returns the status sampled before removal and the removed member id.
+	*/
+	async delete(caller, targetName) {
+		const membership = this.membership(caller);
+		if (membership.role !== "lead") throw new TeamError("only the Team Lead can delete teammates", "TEAM_LEAD_REQUIRED");
+		const root = membership.root;
+		const name = targetName.trim();
+		if (name === "lead") throw new TeamError("the Team Lead cannot be deleted", "TEAM_INVALID_TARGET");
+		const member = this.journal.state(root).members.find((candidate) => candidate.name === name);
+		if (member === void 0 || member.phase === "deleted") throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+		if (member.phase === "provisioning") throw new TeamError(`teammate "${name}" is still provisioning and cannot be deleted yet`, "TEAM_MEMBER_PROVISIONING");
+		const previousStatus = member.phase === "failed" ? "failed" : availability(this.ctx.agents.get(member.id));
+		/* Stop the live child BEFORE committing the deleted event: a child whose roster row is already deleted would be misread by tryMembership as a new implicit Lead during the window before disposal. */
+		if (this.ctx.agents.get(member.id) !== void 0) {
+			this.ctx.subagents.interrupt(member.id, {
+				kind: "ancestor",
+				agent: caller
+			});
+			await this.stopTeammates(root, [member.id]);
+		}
+		await this.journal.transact(root.id, async () => {
+			const current = this.journal.state(root).members.find((candidate) => candidate.id === member.id);
+			if (current === void 0 || current.phase === "deleted") throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+			if (current.phase === "provisioning") throw new TeamError(`teammate "${name}" is still provisioning and cannot be deleted yet`, "TEAM_MEMBER_PROVISIONING");
+			const deleted = {
+				...current,
+				phase: "deleted"
+			};
+			await this.journal.appendAndFlush(root, "team/member", {
+				version: 2,
+				teamId: TeamId(root.id),
+				member: deleted
+			});
+		});
+		return { previousStatus, memberId: member.id };
+	}
+	/**
 	* Group exact live roster children by their current Lead for runtime teardown.
 	* @returns each live Lead and the roster child ids currently in the Agent registry.
 	*/
@@ -561,7 +603,7 @@ var TeamRoster = class {
 		await this.journal.transact(root.id, async () => {
 			const state = this.journal.state(root);
 			if (state.members.some((member) => member.name === name)) throw new TeamError(`teammate name "${name}" was already used in this Team`, "TEAM_MEMBER_NAME_TAKEN");
-			if (state.members.length >= this.maxMembers) throw new TeamError(`Team member limit ${this.maxMembers} reached`, "TEAM_MEMBER_LIMIT");
+			if (state.members.filter((member) => member.phase !== "deleted").length >= this.maxMembers) throw new TeamError(`Team member limit ${this.maxMembers} reached`, "TEAM_MEMBER_LIMIT");
 			await this.journal.appendAndFlush(root, "team/member", {
 				version: 2,
 				teamId: TeamId(root.id),
@@ -1152,7 +1194,8 @@ const teamMemberSnapshotSchema = z$1.object({
 	phase: z$1.enum([
 		"provisioning",
 		"active",
-		"failed"
+		"failed",
+		"deleted"
 	]),
 	error: z$1.string().optional()
 }).strict();
@@ -1300,7 +1343,9 @@ function applyCurrentTeamEvent(state, event) {
 				if (member.phase !== "provisioning") throw new Error(`teammate "${member.name}" must begin provisioning`);
 			} else {
 				if (prior.name !== member.name || prior.provider !== member.provider || prior.context !== member.context) throw new Error(`teammate "${member.id}" changed immutable identity fields`);
-				if (prior.phase !== "provisioning" || member.phase === "provisioning") throw new Error(`teammate "${member.name}" has an invalid ${prior.phase} -> ${member.phase} transition`);
+				const settled = prior.phase === "provisioning" && (member.phase === "active" || member.phase === "failed");
+			const removed = (prior.phase === "active" || prior.phase === "failed") && member.phase === "deleted";
+			if (!settled && !removed) throw new Error(`teammate "${member.name}" has an invalid ${prior.phase} -> ${member.phase} transition`);
 			}
 			return {
 				...state,
@@ -1355,7 +1400,8 @@ const teamMemberProjectionSchema = z$1.object({
 	phase: z$1.enum([
 		"provisioning",
 		"active",
-		"failed"
+		"failed",
+		"deleted"
 	]),
 	error: z$1.string().optional()
 }).strict();
@@ -1390,13 +1436,16 @@ function buildTeamProjection(state) {
 		role: "lead",
 		phase: "active"
 	}];
-	for (const member of state.members) members.push({
-		id: member.id,
-		name: member.name,
-		role: "teammate",
-		phase: member.phase,
-		...member.error === void 0 ? {} : { error: member.error }
-	});
+	for (const member of state.members) {
+		if (member.phase === "deleted") continue;
+		members.push({
+			id: member.id,
+			name: member.name,
+			role: "teammate",
+			phase: member.phase,
+			...member.error === void 0 ? {} : { error: member.error }
+		});
+	}
 	return {
 		members,
 		tasks: state.tasks.filter((task) => task.status !== "deleted").map((task) => projectTaskView(state, task)),
@@ -1428,7 +1477,7 @@ function teamProjectionView(state) {
 /** Team projection selected by the projected Session identity; the wire view carries durable roster and task state only. */
 const teamProjectionDefinition = {
 	key: "agentTeam",
-	stateVersion: 4,
+	stateVersion: 5,
 	stateSchema: teamProjectionEntrySchema,
 	init: (header) => emptyTeamState(header.id),
 	apply: applyProjectionEvent,
@@ -1827,6 +1876,32 @@ var TeamService = class extends Service {
 	*/
 	interrupt(caller, targetName) {
 		return this.roster.interrupt(caller, targetName);
+	}
+	/**
+	* Durably remove one teammate: stop its live child, mark the roster row deleted, and release its in-progress tasks back to pending.
+	* @param caller - exact live Lead Agent.
+	* @param targetName - durable teammate name.
+	* @returns the removed name, its prior status, and the released task ids.
+	*/
+	async deleteTeammate(caller, targetName) {
+		const membership = this.roster.membership(caller);
+		const removed = await this.roster.delete(caller, targetName);
+		const releasedTasks = [];
+		for (const task of this.journal.state(membership.root).tasks) {
+			if (task.ownerId !== removed.memberId || task.status !== "in_progress") continue;
+			try {
+				await this.tasks.update(caller, membership, {
+					taskId: task.id,
+					expectedRevision: task.revision,
+					action: "release"
+				});
+				releasedTasks.push(task.id);
+			} catch {
+				/* a stale revision or transition refusal leaves the task owned; the Lead can reassign it later */
+			}
+		}
+		this.activity.notify(membership.id);
+		return { target: targetName.trim(), previousStatus: removed.previousStatus, releasedTasks };
 	}
 	/**
 	* Resolve a caller without throwing, used by scoped-tool installation and observers.

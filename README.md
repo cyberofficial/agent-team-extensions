@@ -28,9 +28,14 @@ files are kept in each package.
 - **tool-agent-team (tools)** — the model-facing team tools, scoped over the core
   service. Every tool is prefixed `whaleforce_`:
   `whaleforce_spawn_teammate`, `whaleforce_send_message`, `whaleforce_list_agents`,
-  `whaleforce_wait_agent`, `whaleforce_interrupt_agent`, `whaleforce_team_task_create`,
+  `whaleforce_wait_agent`, `whaleforce_interrupt_agent`, `whaleforce_delete_teammate`,
+  `whaleforce_team_task_create`,
   `whaleforce_team_task_list`, `whaleforce_team_task_get`, `whaleforce_team_task_update`
   (final list: see Verification below).
+  `whaleforce_delete_teammate` (Team Lead only) durably removes one settled teammate:
+  the deleted teammate's name is consumed forever and cannot be reused, the roster
+  slot frees for new members, and the deleted teammate's in-progress tasks return
+  to pending.
 - **client-ui-agent-team (ui)** — the Web Team Panel: roster, task board, and
   teammate navigation.
 - **agent-team-profile (bundle)** — the one-row bundle that wires the three
@@ -63,6 +68,9 @@ WhaleForce is NOT enabled by anything on this machine. To enable it in a profile
   `ui-agent-team-whaleforce`.
 - ctx service property: `ctx.agentTeamsClone` (original `ctx.agentTeams`).
 - Model-facing tool names: `whaleforce_` prefix (original names unprefixed).
+- Functional addition: `whaleforce_delete_teammate` (durable teammate deletion,
+  Team Lead only) ports the deletion feature recovered from the reference
+  `agent-team-extensions` commit `1bd198d` into the built libs.
 - `package.json`: `private: true`, `publishConfig` and upstream `repository`
   dropped; version kept at `0.2.0-rc.2` for parity traceability.
 - Everything else — code paths, behavior, config defaults, locale content,

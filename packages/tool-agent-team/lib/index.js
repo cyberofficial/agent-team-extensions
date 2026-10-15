@@ -24,7 +24,7 @@ The Team Lead and all teammates share the same working directory and filesystem.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
 
-Use the target returned by whaleforce_spawn_teammate or whaleforce_list_agents for whaleforce_send_message and whaleforce_interrupt_agent, or as owner when assigning or filtering shared tasks. whaleforce_send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before whaleforce_wait_agent, use whaleforce_list_agents and make sure another required member is running or provisioning; use whaleforce_send_message first when the required member is inactive. whaleforce_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.`;
+Use the target returned by whaleforce_spawn_teammate or whaleforce_list_agents for whaleforce_send_message and whaleforce_interrupt_agent, or as owner when assigning or filtering shared tasks. whaleforce_send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before whaleforce_wait_agent, use whaleforce_list_agents and make sure another required member is running or provisioning; use whaleforce_send_message first when the required member is inactive. whaleforce_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer. The whaleforce_delete_teammate tool is a Lead-only extension for durable teammate deletion.`;
 const ACTIVE_WAIT_STATUSES = new Set(["running", "provisioning"]);
 const NO_ACTIVE_PEER_MESSAGE = "No other Team member is running or provisioning. whaleforce_wait_agent cannot make progress or wake inactive teammates. Re-list with whaleforce_list_agents and whaleforce_team_task_list, then use whaleforce_send_message to wake each required inactive teammate before waiting again.";
 /**
@@ -191,6 +191,24 @@ const INTERRUPT_VALUE_SCHEMA = {
 		required: true,
 		enum: ["running", "inactive"]
 	} }
+};
+const DELETE_VALUE_SCHEMA = {
+	type: "object",
+	additionalProperties: false,
+	properties: {
+		deleted: { type: "boolean", required: true, const: true },
+		target: { type: "string", required: true },
+		previousStatus: {
+			type: "string",
+			required: true,
+			enum: ["running", "inactive", "failed"]
+		},
+		releasedTasks: {
+			type: "array",
+			required: true,
+			items: { type: "string" }
+		}
+	}
 };
 const TASK_LIST_VALUE_SCHEMA = {
 	type: "object",
@@ -361,6 +379,25 @@ To message another teammate, use whaleforce_send_message({ target: "<teammate na
 			output: jsonOutput(INTERRUPT_VALUE_SCHEMA),
 			execute(args, exec) {
 				return Promise.resolve(ctx.agentTeamsClone.interrupt(callingAgent(exec.agent, "whaleforce_interrupt_agent"), args.target));
+			}
+		})));
+		register(scoped.tools.register(defineTool({
+			name: "whaleforce_delete_teammate",
+			description: "Delete one teammate: stop its live agent, remove it from the roster, and release its in-progress tasks back to pending. The teammate name is consumed forever and cannot be reused. Team Lead only.",
+			parameters: { target: {
+				type: "string",
+				required: true,
+				description: "Teammate target returned by whaleforce_spawn_teammate or whaleforce_list_agents."
+			} },
+			output: jsonOutput(DELETE_VALUE_SCHEMA),
+			async execute(args, exec) {
+				const result = await ctx.agentTeamsClone.deleteTeammate(callingAgent(exec.agent, "whaleforce_delete_teammate"), args.target);
+				return {
+					deleted: true,
+					target: result.target,
+					previousStatus: result.previousStatus,
+					releasedTasks: result.releasedTasks
+				};
 			}
 		})));
 		register(scoped.tools.register(defineTool({
