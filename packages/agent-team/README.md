@@ -207,7 +207,7 @@ These limits describe what a team cannot do yet or what needs special operationa
 - **Experimental prototype with no stability promise** — the package is public, but its contracts can change freely while it incubates.
 - **One process and one shared checkout** — members share cwd and observe edits immediately; this package provides no worktree, remote member, merge, or filesystem lock.
 - **Advisory write scopes** — Bash, formatters, code generators, and direct external writers can bypass filesystem version checks; Leads must coordinate ownership and review the final diff.
-- **Flat immutable roster** — only the Lead creates direct teammates; there is no nested Team, rename, deletion, or name reuse.
+- **Flat roster, Lead-owned lifecycle** — only the Lead creates direct teammates; there is no nested Team or rename. The Lead can durably delete a settled teammate, freeing its roster slot; names are never reused.
 - **No automatic ownership release** — inactivity, interruption, process exit, and failed work do not release a task owner.
 - **Mailbox is not cross-process exactly-once** — concurrent harness processes over one Team are unsupported.
 

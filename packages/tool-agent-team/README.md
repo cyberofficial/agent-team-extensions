@@ -1,5 +1,5 @@
 ---
-description: "Nine tools that let the model create, message, and coordinate teammates, for compositions mounting the WhaleForce Agent Teams plugins."
+description: "Ten tools that let the model create, message, coordinate, and delete teammates, for compositions mounting the WhaleForce Agent Teams plugins."
 kind: "package-reference"
 ---
 
@@ -11,7 +11,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package lets the model create named teammates, send them messages, inspect availability, wait for progress, interrupt stuck work, and coordinate through a shared task board. Every team member receives the same nine tools and guidance for coordinating in a shared workspace. Choose it when the model should operate a team only after you explicitly request one. Every tool is renamed with a `whaleforce_` prefix, so this package coexists with the legacy subagent controls and the original team tools instead of shadowing them. This is a private rebrand of the experimental package and provides no stability guarantee.
+This package lets the model create named teammates, send them messages, inspect availability, wait for progress, interrupt stuck work, and coordinate through a shared task board. Every team member receives the same ten tools and guidance for coordinating in a shared workspace. Choose it when the model should operate a team only after you explicitly request one. Every tool is renamed with a `whaleforce_` prefix, so this package coexists with the legacy subagent controls and the original team tools instead of shadowing them. This is a private rebrand of the experimental package and provides no stability guarantee.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ This package lets the model create named teammates, send them messages, inspect 
 <a id="use-this-package"></a>
 ## Use this package
 
-Add this package on top of `dsh-agent-team-whaleforce-core` when the model should run a team through tools. Once mounted, every team member — the Lead and each teammate — gets the same nine tools plus the same coordination policy. `whaleforce_spawn_teammate` prefixes the initial task with the teammate’s role and name.
+Add this package on top of `dsh-agent-team-whaleforce-core` when the model should run a team through tools. Once mounted, every team member — the Lead and each teammate — gets the same ten tools plus the same coordination policy. `whaleforce_spawn_teammate` prefixes the initial task with the teammate’s role and name.
 
 ### When to choose it
 
@@ -56,14 +56,15 @@ Try it by asking the Lead model: "create a teammate named reviewer to check the 
 
 ### What the model can do
 
-The nine tools group into four capabilities:
+The ten tools group into five capabilities:
 
 - **Create a teammate** — `whaleforce_spawn_teammate` takes a name, a description, and the initial task; only the Lead can call it.
 - **Send messages** — `whaleforce_send_message` steers a running member at its nearest step boundary, starts or resumes an inactive member.
 - **See and wait** — `whaleforce_list_agents` returns each member’s `target` and availability; `whaleforce_wait_agent` waits for the next team change; `whaleforce_interrupt_agent` stops a teammate's current turn (Lead only).
 - **Manage the task board** — `whaleforce_team_task_create`, `whaleforce_team_task_list`, `whaleforce_team_task_get`, and `whaleforce_team_task_update` add, browse, read, and update shared tasks.
+- **Delete a teammate** — `whaleforce_delete_teammate` durably removes one teammate: its live agent stops, its roster row disappears, and its in-progress tasks return to pending. The name is consumed forever. Lead only.
 
-Creation and listing results identify members by `target`, with no member Session ID. Use that value in message and interrupt calls or the task tools’ `owner` parameter; task `ownerName` uses the same value. `inactive` means no turn is executing, whether the member is loaded or must be resumed; it does not describe task completion or outcome. `provisioning` and `failed` describe member creation. Any member can message any other member and use the task board; only the Lead creates and interrupts teammates. Task updates keep the domain's owner and revision checks, so an outdated edit is rejected instead of overwriting newer work.
+Creation and listing results identify members by `target`, with no member Session ID. Use that value in message and interrupt calls or the task tools’ `owner` parameter; task `ownerName` uses the same value. `inactive` means no turn is executing, whether the member is loaded or must be resumed; it does not describe task completion or outcome. `provisioning` and `failed` describe member creation. Any member can message any other member and use the task board; only the Lead creates, interrupts, and deletes teammates. Task updates keep the domain's owner and revision checks, so an outdated edit is rejected instead of overwriting newer work.
 
 ### What success and failure look like
 

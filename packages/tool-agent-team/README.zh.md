@@ -1,5 +1,5 @@
 ---
-description: "九个让模型创建、发消息与协调 teammate 的工具，供挂载 WhaleForce Agent Teams 插件的组合使用。"
+description: "十个让模型创建、发消息与协调 teammate 的工具，供挂载 WhaleForce Agent Teams 插件的组合使用。"
 kind: "package-reference"
 ---
 
@@ -11,7 +11,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 ## 概述
 
-本包让模型创建具名 teammate、向它们发送消息、查看可用状态、等待进展、中断卡住的工作，并通过共享任务板协调。每个团队成员都会获得相同的九个工具，以及在共享工作区协调的指引。当模型只应在你明确要求后运行团队时，选择本包。所有工具都以 `whaleforce_` 前缀重命名，因此本包与旧版 subagent 控件及原版团队工具共存，而不是覆盖它们。本包是实验性包的私有 WhaleForce 品牌包，不提供稳定性保证。
+本包让模型创建具名 teammate、向它们发送消息、查看可用状态、等待进展、中断卡住的工作，并通过共享任务板协调。每个团队成员都会获得相同的十个工具，以及在共享工作区协调的指引。当模型只应在你明确要求后运行团队时，选择本包。所有工具都以 `whaleforce_` 前缀重命名，因此本包与旧版 subagent 控件及原版团队工具共存，而不是覆盖它们。本包是实验性包的私有 WhaleForce 品牌包，不提供稳定性保证。
 
 ## 目录
 
@@ -27,7 +27,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 <a id="use-this-package"></a>
 ## 使用本包
 
-当模型应该通过工具运行一支团队时，在 `dsh-agent-team-whaleforce-core` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的九个工具，以及相同的协作策略。`whaleforce_spawn_teammate` 在初始任务前加上 teammate 的角色和名字。
+当模型应该通过工具运行一支团队时，在 `dsh-agent-team-whaleforce-core` 之上挂载本包。挂载后，每个团队成员——Lead 与每个 teammate——都会获得相同的十个工具，以及相同的协作策略。`whaleforce_spawn_teammate` 在初始任务前加上 teammate 的角色和名字。
 
 ### 何时选择
 
@@ -56,14 +56,15 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 ### 模型能做什么
 
-九个工具分为四类能力：
+十个工具分为五类能力：
 
 - **创建 teammate**——`whaleforce_spawn_teammate` 接收名字、描述与初始任务；只有 Lead 可以调用它。
 - **发送消息**——`whaleforce_send_message` 在最近的步骤边界对运行中的成员进行 steering（中途引导）、启动或恢复非活动成员。
 - **查看与等待**——`whaleforce_list_agents` 返回各成员的 `target` 与可用状态；`whaleforce_wait_agent` 等待下一次团队变化；`whaleforce_interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
 - **管理任务板**——`whaleforce_team_task_create`、`whaleforce_team_task_list`、`whaleforce_team_task_get` 与 `whaleforce_team_task_update` 添加、浏览、读取与更新共享任务。
+- **删除 teammate**——`whaleforce_delete_teammate` 持久移除一个 teammate：停止其 live agent，roster 行消失，其 in-progress 任务回到 pending。名字永久消耗，不可复用。仅限 Lead。
 
-创建和列表结果使用 `target` 标识成员，不包含成员 Session ID。可将该值用于消息和中断调用，或任务工具的 `owner` 参数；任务的 `ownerName` 使用相同值。`inactive` 表示没有轮次在执行，包括已加载和需要恢复的成员；它不表示任务完成或结果。`provisioning` 与 `failed` 描述成员创建状态。任何成员都可以给任何其他成员发消息并使用任务板；只有 Lead 可以创建与中断 teammate。任务更新保留领域的 owner 与 revision 校验，因此过期的编辑会被拒绝，而不是覆盖更新的成果。
+创建和列表结果使用 `target` 标识成员，不包含成员 Session ID。可将该值用于消息和中断调用，或任务工具的 `owner` 参数；任务的 `ownerName` 使用相同值。`inactive` 表示没有轮次在执行，包括已加载和需要恢复的成员；它不表示任务完成或结果。`provisioning` 与 `failed` 描述成员创建状态。任何成员都可以给任何其他成员发消息并使用任务板；只有 Lead 可以创建、中断与删除 teammate。任务更新保留领域的 owner 与 revision 校验，因此过期的编辑会被拒绝，而不是覆盖更新的成果。
 
 ### 成功与失败的表现
 
@@ -93,12 +94,12 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 插件入口：配置、固定策略文本与九个 scoped 工具注册 |
+| [`src/index.ts`](src/index.ts) | 插件入口：配置、固定策略文本与十个 scoped 工具注册 |
 | — | 不发布运行时不变式伴生入口；Team 服务拥有持久化与授权关系。 |
 
 ### 策略与工具
 
-member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作规则；固定文本与九个工具注册都声明在 [`src/index.ts`](src/index.ts)。九个工具 schema 注册在发布时被识别为 Team member 的 scope 中。scoped 注册使用带 `whaleforce_` 前缀的名称，因此不会覆盖旧全局 continuable-subagent 控件。
+member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作规则；固定文本与十个工具注册都声明在 [`src/index.ts`](src/index.ts)。十个工具 schema 注册在发布时被识别为 Team member 的 scope 中。scoped 注册使用带 `whaleforce_` 前缀的名称，因此不会覆盖旧全局 continuable-subagent 控件。
 
 ### 按作用域注册与拆除
 
@@ -127,7 +128,7 @@ member scope 上的一个 `whaleforce-team:policy` 段落说明共享的协作�
 
 #### 模型看到什么
 
-一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部九个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`whaleforce_spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse whaleforce_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use whaleforce_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use whaleforce_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。
+一段共享 system 策略会说明显式 delegation 要求、共享 cwd 行为、文件陈旧版本恢复、Bash／formatter／codegen 风险、task／write-scope 协调、Steer 投递、mailbox 不重试规则，以及 Lead 必须在回答前等待。Lead 与 teammate 的全部十个 Team schema 相同；执行时检查仅限 Lead 的操作权限。`whaleforce_spawn_teammate` 在初始 user 消息前加上 `<system-reminder>\nYou are teammate "<name>".\nYour Team Lead is named "lead".\nUse whaleforce_list_agents({}) to find your teammates and their names.\nTo message your Team Lead, use whaleforce_send_message({ target: "lead", message: "..." }).\nTo message another teammate, use whaleforce_send_message({ target: "<teammate name>", message: "..." }).\n</system-reminder>`，接着是一个空行和任务。该前缀不含 Team id，禁用运行时上下文时也能生效。fork 继承历史，不额外添加 Lead 身份消息。
 
 #### Token 影响
 
