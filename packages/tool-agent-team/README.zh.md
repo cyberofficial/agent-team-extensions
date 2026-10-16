@@ -63,7 +63,7 @@ Cloned from @deepseek-ai/dsh-experimental-tool-agent-team v0.2.0-rc.2 (MIT).
 - **查看与等待**--`whaleforce_list_agents` 返回各成员的 `target` 与可用状态；`whaleforce_wait_agent` 等待下一次团队变化；`whaleforce_interrupt_agent` 停止 teammate 的当前轮次（仅限 Lead）。
 - **管理任务板**--`whaleforce_team_task_create`、`whaleforce_team_task_list`、`whaleforce_team_task_get` 与 `whaleforce_team_task_update` 添加、浏览、读取与更新共享任务。
 - **删除 teammate**--`whaleforce_delete_teammate` 持久移除一个 teammate：停止其 live agent，roster 行消失，其 in-progress 任务回到 pending。名字永久消耗，不可复用。仅限 Lead。
-- **更换 teammate 模型**--`whaleforce_set_teammate_model` 为某个 teammate 更换其下一轮次使用的模型（仅限 Lead）。已在执行中的步骤保持当前模型不变；inactive 的 teammate 也接受更换，选择会持久写入其会话日志，并在其下次激活时生效。不可用的模型以 `TEAM_MODEL_UNAVAILABLE` 失败。
+- **更换 teammate 模型**--`whaleforce_set_teammate_model` 为某个 teammate 更换其下一轮次使用的模型（仅限 Lead）。已在执行中的步骤保持当前模型不变；inactive 的 teammate 也接受更换，选择会持久写入其会话日志，并在其下次激活时生效。模型可以来自已配置 catalog 中的任意 provider：可选的 `provider` 参数在它提供该模型时优先；省略时优先使用 teammate 自己的 provider，其次是唯一提供该模型的其他 provider。多个 provider 提供同一模型而未显式指定，以及不可用的模型，都以 `TEAM_MODEL_UNAVAILABLE` 失败，并指明提供该模型的 provider。
 - **恢复失效的模型路由**--teammate 的模型路由在 spawn 时冻结，因此当后端 API 失效时，恢复该 teammate 会一直撞上同一条失效路由。目前的恢复方式是 `whaleforce_delete_teammate` 加上带 `model` 参数的重新 spawn，参数取新路由的 provider 自有模型 id（例如 `z-ai/glm-5.3-flash`；带 provider 前缀的 `nvidia/z-ai/...` 会在 spawn 时被拒绝）。本构建的冷更换支持加载之后（服务器重启后），改为对 inactive 成员调用 `whaleforce_set_teammate_model`：先更换再恢复，保留 roster 名额与名字。
 
 创建和列表结果使用 `target` 标识成员，不包含成员 Session ID。可将该值用于消息和中断调用，或任务工具的 `owner` 参数；任务的 `ownerName` 使用相同值。`inactive` 表示没有轮次在执行，包括已加载和需要恢复的成员；它不表示任务完成或结果。`provisioning` 与 `failed` 描述成员创建状态。任何成员都可以给任何其他成员发消息并使用任务板；只有 Lead 可以创建、中断、删除 teammate 并更换其模型。任务更新保留领域的 owner 与 revision 校验，因此过期的编辑会被拒绝，而不是覆盖更新的成果。

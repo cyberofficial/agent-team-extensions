@@ -35,7 +35,7 @@ kind: "package-reference"
 
 Roster 行展示持久名称与阶段。provisioning 和 running 成员使用共享 ongoing loading，inactive 成员使用人物图标，failed 成员使用 error 红点。实时 Session 状态提供运行活动；共享 `modelSelection` 投影在可用时提供模型。当前会话带有“当前会话”标签且不可选择。在 teammate 会话中选择 Lead 会直接打开 Lead Session。选择 active teammate 会打开其普通 continuable 子会话地址。Host 在打开历史时校验 parent、child 与 mode；后续人类提示词使用同一 addressed-subagent 会话。
 
-Team Panel 的每张 roster 卡片都带有按成员的模型控件，每个 teammate 聊天 composer 都显示一个模型 chip。两者都调用 POST `/api/plugins/whaleforce/set-teammate-model`，模型列表来自 GET `/api/plugins/whaleforce/model-catalog`。该路由同样接受对 inactive 成员的更换：选择被持久记录，并在该成员会话下次加载时显示为 pending。
+Team Panel 的每张 roster 卡片都带有按成员的模型控件，每个 teammate 聊天 composer 都显示一个模型 chip。两者都按 provider 分组展示 GET `/api/plugins/whaleforce/model-catalog` 返回的模型列表（每个 provider 一个选项组），并始终以 `{target, model, provider}` 调用 POST `/api/plugins/whaleforce/set-teammate-model`，因此跨 provider 的同名模型不会冲突。该路由同样接受对 inactive 成员的更换：选择被持久记录，并在该成员会话下次加载时显示为 pending。
 
 ### 查看任务板
 

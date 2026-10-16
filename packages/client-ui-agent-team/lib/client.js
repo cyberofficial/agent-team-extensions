@@ -93,16 +93,22 @@ window.__ModuleLoader__.load({
 			if (!response.ok) throw new Error(`model catalog unavailable: HTTP ${response.status}`);
 			return await response.json();
 		}
-		/** Flatten the catalog into provider-qualified model options for a swap picker. */
-		function catalogModelOptions(catalog) {
-			const options = [];
+		/** Group the catalog into per-provider sections with provider-qualified model option values. */
+		function catalogModelSections(catalog) {
+			const sections = [];
 			for (const group of catalog?.groups ?? []) {
+				const options = [];
 				for (const model of group.models ?? []) options.push({
-					value: model.id,
-					label: `${group.name ?? group.id} / ${model.name ?? model.id}`
+					value: `${group.id}::${model.id}`,
+					label: model.name ?? model.id
+				});
+				if (options.length > 0) sections.push({
+					id: group.id,
+					label: group.name ?? group.id,
+					options
 				});
 			}
-			return options;
+			return sections;
 		}
 		function TeamMemberRow({ member, memberCount, sessionId, useSessions, useSessionStatus, openTeammate, onError, t }) {
 			const model = useSessions((state) => state.projectionsBySession[member.id]?.values.modelSelection?.next?.model);
@@ -124,9 +130,9 @@ window.__ModuleLoader__.load({
 					setSwapping(false);
 				});
 			};
-			const swapModel = (nextModel) => {
+			const swapModel = (nextModel, nextProvider) => {
 				setSwapping(true);
-				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: member.id, target: member.name, model: nextModel }) }).then((response) => {
+				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: member.id, target: member.name, model: nextModel, provider: nextProvider }) }).then((response) => {
 					if (!response.ok) return response.json().then((body) => {
 						throw new Error(body?.error ?? `HTTP ${response.status}`);
 					});
@@ -198,16 +204,22 @@ window.__ModuleLoader__.load({
 						onChange: (event) => {
 							const next = event.target.value;
 							event.target.value = model ?? "";
-							if (next !== "") swapModel(next);
+							if (next !== "") {
+								const separator = next.indexOf("::");
+								swapModel(separator < 0 ? next : next.slice(separator + 2), separator < 0 ? void 0 : next.slice(0, separator));
+							}
 						},
 						style: { font: "inherit", fontSize: 11, color: "inherit", background: "transparent", border: 0, maxWidth: 150 },
 						children: [(0, react_jsx_runtime.jsx)("option", {
 							value: model ?? "",
 							children: model ?? t("swapModel")
-						}, "current"), catalogModelOptions(catalog).map((option) => (0, react_jsx_runtime.jsx)("option", {
-							value: option.value,
-							children: option.label
-						}, option.value))]
+						}, "current"), catalogModelSections(catalog).map((section) => (0, react_jsx_runtime.jsx)("optgroup", {
+							label: section.label,
+							children: section.options.map((option) => (0, react_jsx_runtime.jsx)("option", {
+								value: option.value,
+								children: option.label
+							}, option.value))
+						}, section.id))]
 					})]
 				})]
 			});
@@ -230,10 +242,10 @@ window.__ModuleLoader__.load({
 					setBusy(false);
 				});
 			};
-			const swapModel = (nextModel) => {
+			const swapModel = (nextModel, nextProvider) => {
 				setBusy(true);
 				setChipError(null);
-				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, target: member.name, model: nextModel }) }).then((response) => {
+				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, target: member.name, model: nextModel, provider: nextProvider }) }).then((response) => {
 					if (!response.ok) return response.json().then((body) => {
 						throw new Error(body?.error ?? `HTTP ${response.status}`);
 					});
@@ -257,16 +269,22 @@ window.__ModuleLoader__.load({
 					onChange: (event) => {
 						const next = event.target.value;
 						event.target.value = model ?? "";
-						if (next !== "") swapModel(next);
+						if (next !== "") {
+							const separator = next.indexOf("::");
+							swapModel(separator < 0 ? next : next.slice(separator + 2), separator < 0 ? void 0 : next.slice(0, separator));
+						}
 					},
 					style: { font: "inherit", fontSize: 11, color: "inherit", background: "transparent", border: 0, maxWidth: 140 },
 					children: [(0, react_jsx_runtime.jsx)("option", {
 						value: model ?? "",
 						children: model ?? t("swapModel")
-					}, "current"), catalogModelOptions(catalog).map((option) => (0, react_jsx_runtime.jsx)("option", {
-						value: option.value,
-						children: option.label
-					}, option.value))]
+					}, "current"), catalogModelSections(catalog).map((section) => (0, react_jsx_runtime.jsx)("optgroup", {
+						label: section.label,
+						children: section.options.map((option) => (0, react_jsx_runtime.jsx)("option", {
+							value: option.value,
+							children: option.label
+						}, option.value))
+					}, section.id))]
 				}), chipError !== null && (0, react_jsx_runtime.jsx)("small", { children: chipError })]
 			});
 		}

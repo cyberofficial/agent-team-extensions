@@ -582,23 +582,22 @@ var TeamRoster = class {
 	* @param caller - exact live Lead Agent.
 	* @param targetName - durable teammate name.
 	* @param model - provider-owned model id the teammate will use from its next turn.
-	* @returns the resolved teammate name and its validated model.
+	* @param provider - optional explicit provider route serving the model; omit for auto-resolution.
+	* @returns the resolved teammate name, its validated model, and the resolved provider route.
 	*/
-	async setTeammateModel(caller, targetName, model) {
+	async setTeammateModel(caller, targetName, model, provider) {
 		const membership = this.membership(caller);
 		if (membership.role !== "lead") throw new TeamError("only the Team Lead can change teammate models", "TEAM_LEAD_REQUIRED");
 		const state = this.journal.state(membership.root);
 		const target = resolveActiveMember(membership.root, state, targetName);
 		if (target.id === membership.root.id) throw new TeamError("the Team Lead cannot swap its own model through the Team", "TEAM_INVALID_TARGET");
 		const live = this.ctx.agents.get(target.id);
-		const provider = live === void 0 ? await this.coldTeammateProvider(target) : (live.session.requestHeader()?.config)?.provider ?? live.options.provider ?? "";
+		const childProvider = live === void 0 ? await this.coldTeammateProvider(target) : (live.session.requestHeader()?.config)?.provider ?? live.options.provider ?? "";
 		let selection;
 		try {
 			const llm = this.ctx.get("llm");
-			const resolved = await llm.resolveCallConfig({
-				provider,
-				model
-			});
+			const route = await this.resolveModelRoute(llm, childProvider, model, provider);
+			const resolved = await llm.resolveCallConfig(route);
 			selection = {
 				provider: resolved.provider,
 				model: resolved.model,
@@ -611,14 +610,16 @@ var TeamRoster = class {
 			this.installLiveSelection(live, selection);
 			return {
 				target: target.name,
-				model: selection.model
+				model: selection.model,
+				provider: selection.provider
 			};
 		}
 		const activated = await this.appendColdSelection(target, selection);
 		if (activated !== void 0) this.installLiveSelection(activated, selection);
 		return {
 			target: target.name,
-			model: selection.model
+			model: selection.model,
+			provider: selection.provider
 		};
 	}
 	/**
@@ -657,6 +658,59 @@ var TeamRoster = class {
 		}
 		const descriptor = foldSubagentDescriptor(stored.events.slice(stored.inheritedEventCount));
 		return typeof descriptor?.agentProvider === "string" && descriptor.agentProvider.length > 0 ? descriptor.agentProvider : "";
+	}
+	/**
+	* Scan every registered provider route for one model id with per-provider failure
+	* isolation, mirroring the host catalog build.
+	* @param llm - LLM service owning the provider registry.
+	* @param model - provider-owned model id to locate.
+	* @returns provider ids whose catalog contains the model, in registration order.
+	*/
+	async servingProviders(llm, model) {
+		const servers = [];
+		for (const candidate of llm.listProviders()) {
+			let models;
+			try {
+				models = await llm.listModels(candidate.id);
+			} catch {
+				continue;
+			}
+			if (models.some((entry) => entry.id === model)) servers.push(candidate.id);
+		}
+		return servers;
+	}
+	/**
+	* Resolve the provider route for one requested model: an explicit provider when it
+	* serves the model, else the teammate's own provider when it serves the model,
+	* else the single other serving provider, else a TeamError naming the providers
+	* that serve the model.
+	* @param llm - LLM service owning the provider registry.
+	* @param childProvider - the teammate's current provider route.
+	* @param model - provider-owned model id the teammate will use.
+	* @param requestedProvider - explicit provider route, or undefined for auto-resolution.
+	* @returns the provider and model pair to validate through resolveCallConfig.
+	*/
+	async resolveModelRoute(llm, childProvider, model, requestedProvider) {
+		if (requestedProvider !== void 0 && requestedProvider.length > 0) return await this.requireServedBy(llm, model, requestedProvider);
+		const servers = await this.servingProviders(llm, model);
+		if (servers.includes(childProvider)) return { provider: childProvider, model };
+		if (servers.length === 1) return { provider: servers[0], model };
+		if (servers.length > 1) throw new TeamError(`model "${model}" is served by multiple providers: ${servers.join(", ")}; pass provider explicitly`, "TEAM_MODEL_UNAVAILABLE");
+		throw new TeamError(`no configured provider serves model "${model}"`, "TEAM_MODEL_UNAVAILABLE");
+	}
+	/**
+	* Require one explicit provider route to serve the requested model, naming the
+	* providers that do serve it otherwise.
+	* @param llm - LLM service owning the provider registry.
+	* @param model - provider-owned model id the teammate will use.
+	* @param requestedProvider - explicit provider route that must serve the model.
+	* @returns the provider and model pair to validate through resolveCallConfig.
+	*/
+	async requireServedBy(llm, model, requestedProvider) {
+		const servers = await this.servingProviders(llm, model);
+		if (servers.includes(requestedProvider)) return { provider: requestedProvider, model };
+		const reason = servers.length === 0 ? `provider "${requestedProvider}" has no configured model "${model}" and no other provider serves it` : `provider "${requestedProvider}" has no configured model "${model}"; available providers: ${servers.join(", ")}`;
+		throw new TeamError(reason, "TEAM_MODEL_UNAVAILABLE");
 	}
 	/**
 	* Claim an inactive teammate's stored-log write handle and append one durable
@@ -1978,7 +2032,7 @@ var TeamService = class extends Service {
 					const lead = parentId === void 0 ? void 0 : this.ctx.agents.get(parentId);
 					if (lead === void 0) return Response.json({ error: child === void 0 && parentId === void 0 ? "teammate session not live" : "lead session not live" }, { status: 404 });
 					try {
-						const result = await this.setTeammateModel(lead, body.target, body.model);
+						const result = await this.setTeammateModel(lead, body.target, body.model, body.provider);
 						return Response.json(result);
 					} catch (error) {
 						return Response.json({ error: errorMessage(error) }, { status: 400 });
@@ -2123,10 +2177,11 @@ var TeamService = class extends Service {
 	* @param caller - exact live Lead Agent.
 	* @param targetName - durable teammate name.
 	* @param model - provider-owned model id the teammate will use from its next turn.
-	* @returns the resolved teammate name and its validated model.
+	* @param provider - optional explicit provider route serving the model; omit for auto-resolution.
+	* @returns the resolved teammate name, its validated model, and the resolved provider route.
 	*/
-	async setTeammateModel(caller, targetName, model) {
-		return await this.roster.setTeammateModel(caller, targetName, model);
+	async setTeammateModel(caller, targetName, model, provider) {
+		return await this.roster.setTeammateModel(caller, targetName, model, provider);
 	}
 	/**
 	* Resolve a caller without throwing, used by scoped-tool installation and observers.

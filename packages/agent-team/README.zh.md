@@ -66,7 +66,7 @@ roster 显示每个成员的职责（`lead` 或 `teammate`）与当前状态：`
 
 只有 Lead 可以创建 teammate 或中断它们。
 
-Lead 还可以通过仅限 Lead 的 `setTeammateModel` roster 操作，为某个 teammate 更换其下一轮次使用的模型：已在执行中的步骤保持当前模型不变；inactive 的 teammate 也接受更换，选择会持久追加到其存储日志，并在其下次激活时安装生效；不可用的模型以 `TEAM_MODEL_UNAVAILABLE` 失败。服务为此提供两条 host 路由：POST `/api/plugins/whaleforce/set-teammate-model` 应用更换，GET `/api/plugins/whaleforce/model-catalog` 返回可用模型列表。
+Lead 还可以通过仅限 Lead 的 `setTeammateModel` roster 操作，为某个 teammate 更换其下一轮次使用的模型：已在执行中的步骤保持当前模型不变；inactive 的 teammate 也接受更换，选择会持久追加到其存储日志，并在其下次激活时安装生效。模型可以来自已配置 catalog 中的任意 provider：显式传入的 provider 参数在它提供该模型时优先；否则优先使用 teammate 自己的 provider，其次是唯一提供该模型的其他 provider；多个 provider 提供同一模型而未显式指定时，与不可用的模型一样以 `TEAM_MODEL_UNAVAILABLE` 失败并列出它们。服务为此提供两条 host 路由：POST `/api/plugins/whaleforce/set-teammate-model` 应用更换，接受可选的 `provider` body 字段，并在响应中报告解析出的 provider；GET `/api/plugins/whaleforce/model-catalog` 返回可用模型列表。
 
 ### teammate 之间的消息
 

@@ -66,7 +66,7 @@ The roster shows every member with its role (`lead` or `teammate`) and current s
 
 Only the Lead can create teammates or interrupt them.
 
-The Lead can also change one teammate's model for its next turn through the Lead-only `setTeammateModel` roster operation: a step already in flight keeps its current model, and an inactive teammate also accepts the swap - the selection is appended durably to its stored log and installed when it next activates. An unavailable model fails with `TEAM_MODEL_UNAVAILABLE`. The service serves two host routes for this: POST `/api/plugins/whaleforce/set-teammate-model` applies the swap, and GET `/api/plugins/whaleforce/model-catalog` returns the available model list.
+The Lead can also change one teammate's model for its next turn through the Lead-only `setTeammateModel` roster operation: a step already in flight keeps its current model, and an inactive teammate also accepts the swap - the selection is appended durably to its stored log and installed when it next activates. The model may come from any provider in the configured catalog: an explicit provider argument wins when it serves the model, otherwise the teammate's own provider is preferred and the single other provider serving the model is used next; a model served by several providers without an explicit choice fails with `TEAM_MODEL_UNAVAILABLE` listing them, and so does an unavailable model. The service serves two host routes for this: POST `/api/plugins/whaleforce/set-teammate-model` applies the swap and accepts an optional `provider` body field, reporting the resolved provider in its response, and GET `/api/plugins/whaleforce/model-catalog` returns the available model list.
 
 ### Messages between teammates
 
