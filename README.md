@@ -30,14 +30,20 @@ files are kept in each package.
   service. Every tool is prefixed `whaleforce_`:
   `whaleforce_spawn_teammate`, `whaleforce_send_message`, `whaleforce_list_agents`,
   `whaleforce_wait_agent`, `whaleforce_interrupt_agent`, `whaleforce_delete_teammate`,
+  `whaleforce_restore_teammate`,
   `whaleforce_team_task_create`,
   `whaleforce_team_task_list`, `whaleforce_team_task_get`, `whaleforce_team_task_update`,
   `whaleforce_set_teammate_model`
   (final list: see Verification below).
   `whaleforce_delete_teammate` (Team Lead only) durably removes one settled teammate:
-  the deleted teammate's name is consumed forever and cannot be reused, the roster
-  slot frees for new members, and the deleted teammate's in-progress tasks return
-  to pending.
+  the deleted teammate's name is consumed forever and cannot be reused by a new spawn,
+  the roster slot frees for new members, and the deleted teammate's in-progress tasks
+  return to pending.
+  `whaleforce_restore_teammate` (Team Lead only) relinks one deleted teammate's durable
+  child session back onto the roster under its original name with its full history: the
+  next message resumes it, no new slot or name is spent, and tasks the deletion released
+  are not reclaimed; omitting target lists deleted teammates and whether their sessions
+  remain.
   `whaleforce_set_teammate_model` (Team Lead only) switches a teammate's model with
   next-turn semantics, and accepts the swap for inactive teammates too (applied at
   their next activation); it also accepts a spawn-time `model` on

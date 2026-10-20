@@ -574,6 +574,75 @@ var TeamRoster = class {
 		return { previousStatus, memberId: member.id };
 	}
 	/**
+	* List deleted teammates and whether their durable child Sessions remain,
+	* so the Lead can see what a restore would relink before calling it.
+	* @param caller - exact live Lead Agent.
+	* @returns one row per deleted member, in creation order.
+	*/
+	async scanRestorable(caller) {
+		const membership = this.membership(caller);
+		if (membership.role !== "lead") throw new TeamError("only the Team Lead can scan for restorable teammates", "TEAM_LEAD_REQUIRED");
+		const root = membership.root;
+		const rows = [];
+		for (const member of this.journal.state(root).members) {
+			if (member.phase !== "deleted") continue;
+			let session = "missing";
+			try {
+				const stat = await this.ctx.sessionPersistence.stat(member.id);
+				if (stat?.header.parentSession === root.id) session = "present";
+			} catch {
+				/* a missing or unreadable child Session reports as missing */
+			}
+			rows.push({
+				target: member.name,
+				session,
+				description: member.description
+			});
+		}
+		return rows;
+	}
+	/**
+	* Restore one deleted teammate by relinking its durable child Session: the
+	* roster row returns as active under its original name and identity, the
+	* child Session keeps its full history, and the next message resumes it.
+	* No roster slot is consumed and no name is spent. Tasks the deletion
+	* released are not reclaimed; the Lead reassigns them as needed.
+	* @param caller - exact live Lead Agent.
+	* @param targetName - durable teammate name.
+	* @returns the restored roster row.
+	*/
+	async restore(caller, targetName) {
+		const membership = this.membership(caller);
+		if (membership.role !== "lead") throw new TeamError("only the Team Lead can restore teammates", "TEAM_LEAD_REQUIRED");
+		const root = membership.root;
+		const name = targetName.trim();
+		if (name === "lead") throw new TeamError("the Team Lead cannot be restored", "TEAM_INVALID_TARGET");
+		const member = this.journal.state(root).members.find((candidate) => candidate.name === name);
+		if (member === void 0) throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+		if (member.phase !== "deleted") throw new TeamError(`teammate "${name}" is ${member.phase}, not deleted`, "TEAM_INVALID_TARGET");
+		/* Validate the stored child Session before admitting the row: restoring without it would strand the name on an unresumable member. */
+		const stored = await readPersistedSession(this.ctx.sessionPersistence, member.id);
+		const descriptor = foldSubagentDescriptor(stored.events.slice(stored.inheritedEventCount));
+		if (stored.header.parentSession !== root.id || descriptor?.mode !== "continuable") throw new TeamError(`teammate "${name}" has no resumable child Session`, "TEAM_MEMBER_NOT_RESTORABLE");
+		let restored;
+		await this.journal.transact(root.id, async () => {
+			const current = this.journal.state(root).members.find((candidate) => candidate.id === member.id);
+			if (current === void 0) throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+			if (current.phase !== "deleted") throw new TeamError(`teammate "${name}" is ${current.phase}, not deleted`, "TEAM_INVALID_TARGET");
+			restored = {
+				...current,
+				phase: "active"
+			};
+			delete restored.error;
+			await this.journal.appendAndFlush(root, "team/member", {
+				version: 2,
+				teamId: TeamId(root.id),
+				member: restored
+			});
+		});
+		return this.memberView(restored);
+	}
+	/**
 	* Change one teammate's model for its next turn, live or inactive.
 	* For a live teammate the installed selection overrides provider, model, and reasoning
 	* effort at the next prompt-assembly boundary, so a step already in flight keeps its
@@ -1592,7 +1661,8 @@ function applyCurrentTeamEvent(state, event) {
 				if (prior.name !== member.name || prior.provider !== member.provider || prior.context !== member.context) throw new Error(`teammate "${member.id}" changed immutable identity fields`);
 				const settled = prior.phase === "provisioning" && (member.phase === "active" || member.phase === "failed");
 			const removed = (prior.phase === "active" || prior.phase === "failed") && member.phase === "deleted";
-			if (!settled && !removed) throw new Error(`teammate "${member.name}" has an invalid ${prior.phase} -> ${member.phase} transition`);
+			const restored = prior.phase === "deleted" && member.phase === "active";
+			if (!settled && !removed && !restored) throw new Error(`teammate "${member.name}" has an invalid ${prior.phase} -> ${member.phase} transition`);
 			}
 			return {
 				...state,
@@ -2199,6 +2269,23 @@ var TeamService = class extends Service {
 		}
 		this.activity.notify(membership.id);
 		return { target: targetName.trim(), previousStatus: removed.previousStatus, releasedTasks };
+	}
+	/**
+	* Restore one deleted teammate by relinking its durable child Session.
+	* @param caller - exact live Lead Agent.
+	* @param targetName - durable teammate name.
+	* @returns the restored roster row.
+	*/
+	async restoreTeammate(caller, targetName) {
+		return await this.roster.restore(caller, targetName);
+	}
+	/**
+	* List deleted teammates and whether their durable child Sessions remain.
+	* @param caller - exact live Lead Agent.
+	* @returns restorable rows in creation order.
+	*/
+	async scanRestorableTeammates(caller) {
+		return await this.roster.scanRestorable(caller);
 	}
 	/**
 	* Change one teammate's model for its next turn, live or inactive.
