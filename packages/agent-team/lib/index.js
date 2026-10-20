@@ -463,7 +463,7 @@ var TeamRoster = class {
 		for (const member of state.members) {
 			if (member.phase === "deleted") continue;
 			const live = this.ctx.agents.get(member.id);
-			const model = live?.options.model ?? root.options.model;
+			const model = live?.options.model;
 			result.push({
 				id: member.id,
 				name: member.name,
@@ -798,6 +798,35 @@ var TeamRoster = class {
 	async stopTeammates(root, childIds) {
 		await this.lifecycle.withTimeout(this.ctx.subagents.drainChildren(root, childIds));
 	}
+	/**
+	* Resolve and validate spawn-time per-child model routing, mirroring
+	* setTeammateModel: an explicit modelProvider must serve the model; without
+	* one the Lead's current provider is tried, then the single serving provider,
+	* and ambiguity or absence fails with TEAM_MODEL_UNAVAILABLE. Eager
+	* validation keeps an unavailable route from consuming the member name and
+	* surfacing later as a provisioning failure.
+	* @param root - exact live Team Lead whose current route is the fallback.
+	* @param request - spawn request with optional model and modelProvider.
+	* @returns validated AgentOptions for the child, or undefined to inherit the Lead's route.
+	*/
+	async resolveSpawnModelOptions(root, request) {
+		if (request.model === void 0 && request.modelProvider === void 0) return void 0;
+		if (request.model === void 0) throw new TeamError("provider requires a model on teammate creation", "TEAM_MODEL_UNAVAILABLE");
+		const leadProvider = (root.session.requestHeader()?.config)?.provider ?? root.options.provider ?? "";
+		const llm = this.ctx.get("llm");
+		try {
+			const route = await this.resolveModelRoute(llm, leadProvider, request.model, request.modelProvider);
+			const resolved = await llm.resolveCallConfig(route);
+			return {
+				model: resolved.model,
+				provider: resolved.provider,
+				...resolved.reasoningEffort === void 0 ? {} : { reasoningEffort: resolved.reasoningEffort }
+			};
+		} catch (error) {
+			if (error instanceof TeamError) throw error;
+			throw new TeamError(`model "${request.model}" is unavailable for a new teammate: ${errorMessage(error)}`, "TEAM_MODEL_UNAVAILABLE");
+		}
+	}
 	/** Perform one creation admitted before the Team runtime disposal cutoff. */
 	async spawnAdmitted(caller, request) {
 		const membership = this.membership(caller);
@@ -808,6 +837,7 @@ var TeamRoster = class {
 		const name = this.memberName(request.name);
 		const description = requiredText(request.description, "description", 200);
 		const childId = brandString(randomUUID());
+		const modelOptions = await this.resolveSpawnModelOptions(root, request);
 		const member = {
 			id: childId,
 			name,
@@ -835,7 +865,7 @@ var TeamRoster = class {
 				request: {
 					prompt: request.prompt,
 					parent: root,
-					...(request.model === void 0 ? {} : { agentOptions: { model: request.model } })
+					...(modelOptions === void 0 ? {} : { agentOptions: modelOptions })
 				},
 				signal
 			});

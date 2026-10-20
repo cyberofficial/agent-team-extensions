@@ -142,6 +142,10 @@ export interface SpawnTeammateRequest {
     readonly prompt: ContentBlock[];
     readonly context: 'fresh' | 'fork';
     readonly provider: string;
+    /** Optional provider-owned model id the child uses instead of the Lead's route. */
+    readonly model?: string;
+    /** Optional provider route that owns the model; resolution mirrors setTeammateModel. */
+    readonly modelProvider?: string;
     readonly signal: AbortSignal;
 }
 /** Result after one teammate reaches a durable active or failed edge. */

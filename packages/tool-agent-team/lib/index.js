@@ -293,6 +293,10 @@ function install(agent, ctx, config) {
 				model: {
 					type: "string",
 					description: "Optional provider-owned model id the teammate will use instead of the Lead's route; requires a spawn provider that accepts per-child agentOptions."
+				},
+				provider: {
+					type: "string",
+					description: "Optional provider route that owns the model; omit to use the Lead's provider when it serves the model, else the single provider that serves it. Required when several providers serve the same model id."
 				}
 			},
 			output: jsonOutput(SPAWN_VALUE_SCHEMA),
@@ -319,7 +323,10 @@ To message another teammate, use whaleforce_send_message({ target: "<teammate na
 					}],
 					context,
 					provider: context === "fork" ? config.forkProvider : config.freshProvider,
-					...(args.model === void 0 ? {} : { model: args.model }),
+					...(args.model === void 0 ? {} : {
+						model: args.model,
+						...(args.provider === void 0 ? {} : { modelProvider: args.provider })
+					}),
 					signal: exec.signal
 				})).member) };
 			}

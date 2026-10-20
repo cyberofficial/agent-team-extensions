@@ -31,17 +31,17 @@
     }
   },
   "dependencies": {
-    "dsh-agent-team-whaleforce-core": "file:../agent-team",
-    "dsh-agent-team-whaleforce-ui": "file:../client-ui-agent-team",
-    "dsh-agent-team-whaleforce-sessions": "file:../client-ui-agent-team-sessions",
-    "dsh-agent-team-whaleforce-tools": "file:../tool-agent-team"
+    "dsh-agent-team-whaleforce-core": "link:../agent-team",
+    "dsh-agent-team-whaleforce-sessions": "link:../client-ui-agent-team-sessions",
+    "dsh-agent-team-whaleforce-tools": "link:../tool-agent-team",
+    "dsh-agent-team-whaleforce-ui": "link:../client-ui-agent-team"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4"
   },
   "devDependencies": {
-    "js-yaml": "^4.2.0",
+    "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/cordis-plugin-include": "~1.0.9",
-    "@deepseek-ai/cordis": "~4.0.4"
+    "js-yaml": "^4.2.0"
   }
 }
