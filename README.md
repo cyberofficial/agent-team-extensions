@@ -44,10 +44,11 @@ files are kept in each package.
   next message resumes it, no new slot or name is spent, and tasks the deletion released
   are not reclaimed; omitting target lists deleted teammates and whether their sessions
   remain.
-  `whaleforce_set_teammate_model` (Team Lead only) switches a teammate's model with
-  next-turn semantics, and accepts the swap for inactive teammates too (applied at
-  their next activation); it also accepts a spawn-time `model` on
-  `whaleforce_spawn_teammate` (see the tool package README for details).
+  `whaleforce_set_teammate_model` (Team Lead only) switches a teammate's model and/or
+  reasoning effort with next-turn semantics, and accepts the swap for inactive teammates
+  too (applied at their next activation); `whaleforce_spawn_teammate` also accepts
+  spawn-time `model`, `provider`, and `effort` so members can be created on a different
+  route or reasoning level than the Lead (see the tool package README for details).
 - **client-ui-agent-team (ui)** - the Web Team Panel: roster, task board, and
   teammate navigation.
 - **client-ui-agent-team-sessions (sessions)** - the Web grouped subagent-session

@@ -146,6 +146,8 @@ export interface SpawnTeammateRequest {
     readonly model?: string;
     /** Optional provider route that owns the model; resolution mirrors setTeammateModel. */
     readonly modelProvider?: string;
+    /** Optional reasoning effort id for the resolved route; omit for the route default. */
+    readonly effort?: string;
     readonly signal: AbortSignal;
 }
 /** Result after one teammate reaches a durable active or failed edge. */

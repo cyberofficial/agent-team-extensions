@@ -110,6 +110,36 @@ window.__ModuleLoader__.load({
 			}
 			return sections;
 		}
+		/** Resolve the advertised reasoning efforts for one model id. */
+		function catalogModelReasoning(catalog, model) {
+			if (model === void 0) return void 0;
+			for (const group of catalog?.groups ?? []) for (const entry of group.models ?? []) if (entry.id === model) return entry.reasoning;
+			return void 0;
+		}
+		/** One reasoning-effort selector for the teammate's current model; null when the route exposes none. */
+		function renderEffortSelect(reasoning, busy, fallback, onPick, t) {
+			const efforts = reasoning?.efforts ?? [];
+			if (efforts.length === 0) return null;
+			return (0, react_jsx_runtime.jsx)("select", {
+				"aria-label": t("effort"),
+				title: t("effort"),
+				disabled: busy,
+				defaultValue: "",
+				onChange: (event) => {
+					const next = event.target.value;
+					event.target.value = "";
+					if (next !== "") onPick(next);
+				},
+				style: { font: "inherit", fontSize: 11, color: "inherit", background: "transparent", border: 0, maxWidth: 110 },
+				children: [(0, react_jsx_runtime.jsx)("option", {
+					value: "",
+					children: `${t("effort")}: ${fallback ?? reasoning.defaultEffort ?? t("effortDefault")}`
+				}, "effort-default"), efforts.map((effort) => (0, react_jsx_runtime.jsx)("option", {
+					value: effort.id,
+					children: effort.name ?? effort.id
+				}, effort.id))]
+			});
+		}
 		function TeamMemberRow({ member, memberCount, sessionId, useSessions, useSessionStatus, openTeammate, onError, t }) {
 			const model = useSessions((state) => state.projectionsBySession[member.id]?.values.modelSelection?.next?.model);
 			const running = useSessionStatus((state) => state.get(member.id)?.running);
@@ -130,9 +160,9 @@ window.__ModuleLoader__.load({
 					setSwapping(false);
 				});
 			};
-			const swapModel = (nextModel, nextProvider) => {
+			const swapModel = (nextModel, nextProvider, nextEffort) => {
 				setSwapping(true);
-				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: member.id, target: member.name, model: nextModel, provider: nextProvider }) }).then((response) => {
+				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: member.id, target: member.name, model: nextModel, provider: nextProvider, ...(nextEffort === void 0 ? {} : { effort: nextEffort }) }) }).then((response) => {
 					if (!response.ok) return response.json().then((body) => {
 						throw new Error(body?.error ?? `HTTP ${response.status}`);
 					});
@@ -220,7 +250,7 @@ window.__ModuleLoader__.load({
 								children: option.label
 							}, option.value))
 						}, section.id))]
-					})]
+					}), catalog === null ? null : renderEffortSelect(catalogModelReasoning(catalog, model), swapping, void 0, (effort) => swapModel(model, void 0, effort), t)]
 				})]
 			});
 		}
@@ -242,10 +272,10 @@ window.__ModuleLoader__.load({
 					setBusy(false);
 				});
 			};
-			const swapModel = (nextModel, nextProvider) => {
+			const swapModel = (nextModel, nextProvider, nextEffort) => {
 				setBusy(true);
 				setChipError(null);
-				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, target: member.name, model: nextModel, provider: nextProvider }) }).then((response) => {
+				fetch(WF_SET_MODEL_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, target: member.name, model: nextModel, provider: nextProvider, ...(nextEffort === void 0 ? {} : { effort: nextEffort }) }) }).then((response) => {
 					if (!response.ok) return response.json().then((body) => {
 						throw new Error(body?.error ?? `HTTP ${response.status}`);
 					});
@@ -285,7 +315,7 @@ window.__ModuleLoader__.load({
 							children: option.label
 						}, option.value))
 					}, section.id))]
-				}), chipError !== null && (0, react_jsx_runtime.jsx)("small", { children: chipError })]
+				}), catalog === null ? null : renderEffortSelect(catalogModelReasoning(catalog, model), busy, void 0, (effort) => swapModel(model, void 0, effort), t), chipError !== null && (0, react_jsx_runtime.jsx)("small", { children: chipError })]
 			});
 		}
 		/** Task card with a two-line description clamp expanded from a toggle in the meta row. */
@@ -551,6 +581,8 @@ window.__ModuleLoader__.load({
 			tasks: "共享任务",
 			model: "模型",
 			"swapModel": "更换模型",
+			effort: "推理强度",
+			"effortDefault": "默认",
 			open: "打开成员会话",
 			current: "当前会话",
 			owner: "Owner",
@@ -580,6 +612,8 @@ window.__ModuleLoader__.load({
 			tasks: "Shared tasks",
 			model: "Model",
 			"swapModel": "Swap model",
+			effort: "Effort",
+			"effortDefault": "default",
 			open: "Open member conversation",
 			current: "Current chat",
 			owner: "Owner",

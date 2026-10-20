@@ -652,9 +652,10 @@ var TeamRoster = class {
 	* @param targetName - durable teammate name.
 	* @param model - provider-owned model id the teammate will use from its next turn.
 	* @param provider - optional explicit provider route serving the model; omit for auto-resolution.
-	* @returns the resolved teammate name, its validated model, and the resolved provider route.
+	* @param effort - optional reasoning effort id; omit to use the route default.
+	* @returns the resolved teammate name, its validated model, provider route, and effort.
 	*/
-	async setTeammateModel(caller, targetName, model, provider) {
+	async setTeammateModel(caller, targetName, model, provider, effort) {
 		const membership = this.membership(caller);
 		if (membership.role !== "lead") throw new TeamError("only the Team Lead can change teammate models", "TEAM_LEAD_REQUIRED");
 		const state = this.journal.state(membership.root);
@@ -666,30 +667,24 @@ var TeamRoster = class {
 		try {
 			const llm = this.ctx.get("llm");
 			const route = await this.resolveModelRoute(llm, childProvider, model, provider);
-			const resolved = await llm.resolveCallConfig(route);
-			selection = {
-				provider: resolved.provider,
-				model: resolved.model,
-				...resolved.reasoningEffort === void 0 ? {} : { reasoningEffort: resolved.reasoningEffort }
-			};
+			selection = await this.materializeSelection(llm, route, effort);
 		} catch (error) {
-			throw new TeamError(`model "${model}" is unavailable for teammate "${target.name}": ${errorMessage(error)}`, "TEAM_MODEL_UNAVAILABLE");
+			const effortNote = effort === void 0 ? "" : ` at effort "${effort}"`;
+			throw new TeamError(`model "${model}"${effortNote} is unavailable for teammate "${target.name}": ${errorMessage(error)}`, "TEAM_MODEL_UNAVAILABLE");
 		}
+		const view = {
+			target: target.name,
+			model: selection.model,
+			provider: selection.provider,
+			...selection.reasoningEffort === void 0 ? {} : { effort: String(selection.reasoningEffort) }
+		};
 		if (live !== void 0) {
 			this.installLiveSelection(live, selection);
-			return {
-				target: target.name,
-				model: selection.model,
-				provider: selection.provider
-			};
+			return view;
 		}
 		const activated = await this.appendColdSelection(target, selection);
 		if (activated !== void 0) this.installLiveSelection(activated, selection);
-		return {
-			target: target.name,
-			model: selection.model,
-			provider: selection.provider
-		};
+		return view;
 	}
 	/**
 	* Append one durable model/selection event and install the mutable selection
@@ -780,6 +775,27 @@ var TeamRoster = class {
 		if (servers.includes(requestedProvider)) return { provider: requestedProvider, model };
 		const reason = servers.length === 0 ? `provider "${requestedProvider}" has no configured model "${model}" and no other provider serves it` : `provider "${requestedProvider}" has no configured model "${model}"; available providers: ${servers.join(", ")}`;
 		throw new TeamError(reason, "TEAM_MODEL_UNAVAILABLE");
+	}
+	/**
+	* Validate one resolved provider/model route plus an optional explicit reasoning
+	* effort, materializing the adapter default when no effort is requested. An
+	* unsupported effort rejects here, before any provider I/O or durable write.
+	* @param llm - LLM service owning the provider registry.
+	* @param route - provider and model selected for the teammate.
+	* @param effort - optional reasoning effort id requested by the Lead.
+	* @returns the detached validated provider, model, and reasoning effort.
+	*/
+	async materializeSelection(llm, route, effort) {
+		const resolved = await llm.resolveCallConfig({
+			provider: route.provider,
+			model: route.model,
+			...effort === void 0 ? {} : { reasoningEffort: effort }
+		});
+		return {
+			provider: resolved.provider,
+			model: resolved.model,
+			...resolved.reasoningEffort === void 0 ? {} : { reasoningEffort: resolved.reasoningEffort }
+		};
 	}
 	/**
 	* Claim an inactive teammate's stored-log write handle and append one durable
@@ -875,25 +891,27 @@ var TeamRoster = class {
 	* validation keeps an unavailable route from consuming the member name and
 	* surfacing later as a provisioning failure.
 	* @param root - exact live Team Lead whose current route is the fallback.
-	* @param request - spawn request with optional model and modelProvider.
+	* @param request - spawn request with optional model, modelProvider, and effort.
 	* @returns validated AgentOptions for the child, or undefined to inherit the Lead's route.
 	*/
 	async resolveSpawnModelOptions(root, request) {
-		if (request.model === void 0 && request.modelProvider === void 0) return void 0;
-		if (request.model === void 0) throw new TeamError("provider requires a model on teammate creation", "TEAM_MODEL_UNAVAILABLE");
-		const leadProvider = (root.session.requestHeader()?.config)?.provider ?? root.options.provider ?? "";
+		const hasModel = request.model !== void 0;
+		const hasEffort = request.effort !== void 0;
+		if (!hasModel && !hasEffort && request.modelProvider === void 0) return void 0;
+		if (!hasModel && request.modelProvider !== void 0) throw new TeamError("provider requires a model on teammate creation", "TEAM_MODEL_UNAVAILABLE");
 		const llm = this.ctx.get("llm");
+		const leadHeader = root.session.requestHeader()?.config;
+		const leadProvider = leadHeader?.provider ?? root.options.provider ?? "";
+		const leadModel = leadHeader?.model ?? root.options.model ?? "";
 		try {
-			const route = await this.resolveModelRoute(llm, leadProvider, request.model, request.modelProvider);
-			const resolved = await llm.resolveCallConfig(route);
-			return {
-				model: resolved.model,
-				provider: resolved.provider,
-				...resolved.reasoningEffort === void 0 ? {} : { reasoningEffort: resolved.reasoningEffort }
-			};
+			/* An effort-only request applies to the Lead's own route, so members can share the model but run at a different effort. */
+			const route = hasModel ? await this.resolveModelRoute(llm, leadProvider, request.model, request.modelProvider) : { provider: leadProvider, model: leadModel };
+			return await this.materializeSelection(llm, route, request.effort);
 		} catch (error) {
 			if (error instanceof TeamError) throw error;
-			throw new TeamError(`model "${request.model}" is unavailable for a new teammate: ${errorMessage(error)}`, "TEAM_MODEL_UNAVAILABLE");
+			const label = hasModel ? request.model : leadModel;
+			const effortNote = request.effort === void 0 ? "" : ` at effort "${request.effort}"`;
+			throw new TeamError(`model "${label}"${effortNote} is unavailable for a new teammate: ${errorMessage(error)}`, "TEAM_MODEL_UNAVAILABLE");
 		}
 	}
 	/** Perform one creation admitted before the Team runtime disposal cutoff. */
@@ -2132,7 +2150,7 @@ var TeamService = class extends Service {
 					const lead = parentId === void 0 ? void 0 : this.ctx.agents.get(parentId);
 					if (lead === void 0) return Response.json({ error: child === void 0 && parentId === void 0 ? "teammate session not live" : "lead session not live" }, { status: 404 });
 					try {
-						const result = await this.setTeammateModel(lead, body.target, body.model, body.provider);
+						const result = await this.setTeammateModel(lead, body.target, body.model, body.provider, body.effort);
 						return Response.json(result);
 					} catch (error) {
 						return Response.json({ error: errorMessage(error) }, { status: 400 });
@@ -2295,10 +2313,11 @@ var TeamService = class extends Service {
 	* @param targetName - durable teammate name.
 	* @param model - provider-owned model id the teammate will use from its next turn.
 	* @param provider - optional explicit provider route serving the model; omit for auto-resolution.
-	* @returns the resolved teammate name, its validated model, and the resolved provider route.
+	* @param effort - optional reasoning effort id; omit to use the route default.
+	* @returns the resolved teammate name, its validated model, provider route, and effort.
 	*/
-	async setTeammateModel(caller, targetName, model, provider) {
-		return await this.roster.setTeammateModel(caller, targetName, model, provider);
+	async setTeammateModel(caller, targetName, model, provider, effort) {
+		return await this.roster.setTeammateModel(caller, targetName, model, provider, effort);
 	}
 	/**
 	* Resolve a caller without throwing, used by scoped-tool installation and observers.
