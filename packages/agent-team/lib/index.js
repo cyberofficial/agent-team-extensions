@@ -362,17 +362,19 @@ function resolveActiveMember(root, state, rawName) {
 	};
 }
 /**
-* Test whether one durable model/selection matches one consumed request route,
-* the model-selection projection's retirement comparison: provider, model, and
-* stringified reasoning effort.
-* @param selection - durable data of one model/selection event.
-* @param config - the consumed request's call configuration.
-* @returns whether the request routed through the selection.
+* Read the durable route one logged request used, shaped like a model selection.
+* Adapter-materialized reasoning effort is omitted so a later model default can
+* still apply, matching the harness modelSelection projection's last-used route.
+* @param header - persisted request/header event header.
+* @returns provider, model, and explicit reasoning effort when the request carried one.
 */
-function sameModelRoute(selection, config) {
-	if (selection === void 0) return false;
-	if (selection.provider !== config.provider || selection.model !== config.model) return false;
-	return selection.reasoningEffort === (config.reasoningEffort === void 0 ? void 0 : String(config.reasoningEffort));
+function routeOfRequestHeader(header) {
+	const config = header.config;
+	return {
+		provider: config.provider,
+		model: config.model,
+		...config.reasoningEffort === void 0 || header.adapterDefaults?.reasoningEffort === true ? {} : { reasoningEffort: String(config.reasoningEffort) }
+	};
 }
 /** Owns Team identities and the lifecycle of rostered continuable children. */
 var TeamRoster = class {
@@ -694,16 +696,7 @@ var TeamRoster = class {
 	*/
 	installLiveSelection(live, selection) {
 		live.session.append("model/selection", selection);
-		let installed = this.modelSelections.get(live);
-		if (installed === void 0) {
-			installed = {
-				current: void 0,
-				assembled: void 0
-			};
-			installModelSelection(live.ctx, installed);
-			this.modelSelections.set(live, installed);
-		}
-		installed.current = selection;
+		this.installSelection(live).current = selection;
 	}
 	/**
 	* Resolve the provider route an inactive teammate's stored log last used, for
@@ -828,35 +821,58 @@ var TeamRoster = class {
 		return void 0;
 	}
 	/**
-	* Install an unconsumed persisted model/selection on a newly materialized teammate.
-	* Runs synchronously on agent/created and in the service startup sweep, before any
-	* recovery work: the pending selection is the last model/selection in the teammate's
-	* own suffix that no later request/header has consumed with the same route.
+	* Install the per-teammate model selection on a newly materialized teammate.
+	* Runs synchronously on agent/created and in the service startup sweep, before
+	* any recovery work or prompt assembly. A cold resume rebuilds the Agent from its
+	* spawn descriptor, so the installer must exist even when the swap has already
+	* been used by a request: without it, the next resume after an API limit, stall,
+	* or provider failure would silently revert to the spawn route. The installed
+	* `current` falls back to durable state (pending selection, then the last logged
+	* request route), so a resumed teammate stays on the model it was last using.
 	* @param agent - newly started exact live Agent.
 	*/
 	applyColdSelection(agent) {
 		const membership = this.tryMembership(agent);
 		if (membership === void 0 || membership.role !== "teammate") return;
-		const suffix = agent.session.snapshotEvents(agent.session.inheritedEventCount);
-		let selection;
-		for (const event of suffix) {
-			if (event.type === "model/selection") {
-				selection = event.data;
-				continue;
-			}
-			if (event.type === "request/header" && selection !== void 0 && sameModelRoute(selection, event.data.header.config)) selection = void 0;
-		}
-		if (selection === void 0) return;
+		this.installSelection(agent);
+	}
+	/**
+	* Create once and return the mutable selection reference installed on one live
+	* teammate. `current` falls back to durable state whenever no explicit swap is
+	* pinned: first the modelSelection projection's pending selection, then the route
+	* the last logged request used. Both are durable, so the fallback survives the
+	* Agent being disposed and cold-resumed.
+	* @param agent - live teammate Agent owning the selection.
+	* @returns the installed mutable selection reference.
+	*/
+	installSelection(agent) {
 		let installed = this.modelSelections.get(agent);
-		if (installed === void 0) {
-			installed = {
-				current: void 0,
-				assembled: void 0
-			};
-			installModelSelection(agent.ctx, installed);
-			this.modelSelections.set(agent, installed);
-		}
-		installed.current = selection;
+		if (installed !== void 0) return installed;
+		const projections = this.ctx.sessionProjections;
+		const selection = {
+			picked: void 0,
+			assembled: void 0,
+			get current() {
+				if (selection.picked !== void 0) return selection.picked;
+				/* The projection read is best-effort: a teammate must still start if the host registered no modelSelection projection. */
+				let projection;
+				try {
+					projection = projections.stateOf(agent.session, "modelSelection");
+				} catch {
+					projection = void 0;
+				}
+				const pending = projection?.pending;
+				if (pending !== null && pending !== void 0) return pending;
+				const header = agent.session.requestHeader();
+				return header === void 0 ? void 0 : routeOfRequestHeader(header);
+			},
+			set current(next) {
+				selection.picked = next;
+			}
+		};
+		installModelSelection(agent.ctx, selection);
+		this.modelSelections.set(agent, selection);
+		return selection;
 	}
 	/**
 	* Group exact live roster children by their current Lead for runtime teardown.
