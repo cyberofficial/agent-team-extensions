@@ -49,8 +49,8 @@ files are kept in each package.
   too (applied at their next activation); `whaleforce_spawn_teammate` also accepts
   spawn-time `model`, `provider`, and `effort` so members can be created on a different
   route or reasoning level than the Lead (see the tool package README for details).
-- **client-ui-agent-team (ui)** - the Web Team Panel: roster, task board, and
-  teammate navigation.
+- **client-ui-agent-team (ui)** - the Web Team Panel: roster, task board,
+  teammate navigation, model/effort swap, and the operator wait-tool switch.
 - **client-ui-agent-team-sessions (sessions)** - the Web grouped subagent-session
   catalog (Running, Idle, Completed, Error) that replaces the official
   `ui-subagent` header trigger and re-registers the sidebar chat.

@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
 		let react_dom = require("react-dom");
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		//#region \0dsh-css:/home/cyber/DSH-Plugins/dsh-plugin-agent-team-whaleforce/packages/client-ui-agent-team/src/client/TeamAction.module.css.mjs
-		const css = ".VoX2oq_root{position:relative}.VoX2oq_trigger{min-height:28px;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;border-radius:6px;align-items:center;gap:5px;padding:3px 7px;font-size:12px;display:inline-flex}.VoX2oq_trigger:hover,.VoX2oq_trigger:focus-visible{color:var(--dsw-alias-label-primary)}@container (width<=480px){.VoX2oq_triggerLabel{display:none}}.VoX2oq_count{color:var(--dsw-alias-label-caption);font-variant-numeric:tabular-nums;font-size:12px;font-weight:400;line-height:16px}.VoX2oq_panel{--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);z-index:100;box-sizing:border-box;--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);width:min(500px,100vw - 32px);max-height:min(680px,100vh - 32px);box-shadow:var(--dsw-elevation-prominent);border:0;border-radius:12px;flex-direction:column;padding:8px 2px 0;display:flex;position:fixed;overflow:hidden}.VoX2oq_panel:before{content:\"\";z-index:-1;background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);border-radius:12px;position:absolute;inset:0}.VoX2oq_panelCompact{width:min(320px,100vw - 32px)}.VoX2oq_panelCompact .VoX2oq_roster{grid-template-columns:minmax(0,1fr)}.VoX2oq_body{--dsh-scrollbar-track-margin:8px;scrollbar-gutter:stable;flex:auto;min-height:0;padding:0 9px 16px 14px;overflow-y:auto}.VoX2oq_taskTitle{align-items:center;gap:8px;display:flex}.VoX2oq_taskTitle strong{font-size:13px;font-weight:500}.VoX2oq_panel h3{color:var(--dsw-alias-label-primary);align-items:center;gap:8px;margin:16px 0 8px 4px;font-size:13px;font-weight:500;display:flex}.VoX2oq_body section:first-of-type h3{margin-top:8px}.VoX2oq_roster{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;display:grid}.VoX2oq_member{--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);min-width:0;box-shadow:var(--dsw-elevation-stroke);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;border:0;border-radius:8px;align-items:flex-start;gap:8px;padding:10px 12px;display:flex}.VoX2oq_member:disabled{cursor:default}.VoX2oq_memberCurrent{--dsw-elevation-stroke-color:color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);box-shadow:var(--dsw-elevation-stroke), inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent)}.VoX2oq_member:not(:disabled):hover,.VoX2oq_member:not(:disabled):focus-visible{--dsw-elevation-stroke-color:var(--dsw-alias-border-l3);box-shadow:var(--dsw-elevation-panel)}.VoX2oq_memberDot{flex:none;align-items:center;height:1lh;display:inline-flex}.VoX2oq_inactiveIcon{color:var(--dsw-alias-label-tertiary)}.VoX2oq_memberText{flex-direction:column;min-width:0;display:flex}.VoX2oq_memberName{align-items:center;gap:5px;min-width:0;display:inline-flex}.VoX2oq_memberNameText,.VoX2oq_memberText small{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.VoX2oq_memberModel{display:none}.VoX2oq_member:hover .VoX2oq_memberModel,.VoX2oq_member:focus-visible .VoX2oq_memberModel{display:inline}.VoX2oq_currentTag{text-overflow:ellipsis;flex:0 999 auto;min-width:0;padding:0 4px;font-size:10px;line-height:15px;display:inline-block;overflow:hidden}.VoX2oq_memberText small,.VoX2oq_meta{color:var(--dsw-alias-label-tertiary);font-size:11px}.VoX2oq_diagnostic,.VoX2oq_error,.VoX2oq_warning{color:var(--dsw-alias-state-error-primary)}.VoX2oq_tasks{flex-direction:column;gap:7px;display:flex}.VoX2oq_emptyNotice{color:var(--dsw-alias-label-tertiary);margin:16px 0 0 4px;font-size:12px}.VoX2oq_task{border:.5px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);border-radius:9px;padding:11px 13px}.VoX2oq_taskState{color:var(--dsw-alias-label-tertiary);align-items:center;gap:6px;margin-left:auto;font-size:11px;display:inline-flex}.VoX2oq_task p{color:var(--dsw-alias-label-secondary);white-space:pre-wrap;margin:5px 0;font-size:12px;line-height:18px}.VoX2oq_clampedDescription{-webkit-line-clamp:2;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.VoX2oq_expandToggle{float:right;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;align-items:center;gap:2px;margin-left:10px;padding:0;font-size:11px;line-height:20px;display:inline-flex}.VoX2oq_expandToggle:hover,.VoX2oq_expandToggle:focus-visible{color:var(--dsw-alias-label-primary)}.VoX2oq_expandToggle svg{transition:transform .12s}.VoX2oq_expandToggleOpen{transform:rotate(180deg)}.VoX2oq_meta{line-height:20px}.VoX2oq_meta>span{margin-right:10px}.VoX2oq_notice,.VoX2oq_error{align-items:center;gap:6px;padding:9px;font-size:12px;display:flex}";
+		const css = ".VoX2oq_root{position:relative}.VoX2oq_trigger{min-height:28px;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;border-radius:6px;align-items:center;gap:5px;padding:3px 7px;font-size:12px;display:inline-flex}.VoX2oq_trigger:hover,.VoX2oq_trigger:focus-visible{color:var(--dsw-alias-label-primary)}@container (width<=480px){.VoX2oq_triggerLabel{display:none}}.VoX2oq_count{color:var(--dsw-alias-label-caption);font-variant-numeric:tabular-nums;font-size:12px;font-weight:400;line-height:16px}.VoX2oq_panel{--dsh-scrollbar-thumb:var(--dsw-alias-scrollbar-bg-l2);--dsh-scrollbar-thumb-hover:var(--dsw-alias-scrollbar-hover-l2);z-index:100;box-sizing:border-box;--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);width:min(500px,100vw - 32px);max-height:min(680px,100vh - 32px);box-shadow:var(--dsw-elevation-prominent);border:0;border-radius:12px;flex-direction:column;padding:8px 2px 0;display:flex;position:fixed;overflow:hidden}.VoX2oq_panel:before{content:\"\";z-index:-1;background:var(--dsw-specific-menu);backdrop-filter:var(--dsw-menu-backdrop-filter);border-radius:12px;position:absolute;inset:0}.VoX2oq_panelCompact{width:min(320px,100vw - 32px)}.VoX2oq_panelCompact .VoX2oq_roster{grid-template-columns:minmax(0,1fr)}.VoX2oq_body{--dsh-scrollbar-track-margin:8px;scrollbar-gutter:stable;flex:auto;min-height:0;padding:0 9px 16px 14px;overflow-y:auto}.VoX2oq_taskTitle{align-items:center;gap:8px;display:flex}.VoX2oq_taskTitle strong{font-size:13px;font-weight:500}.VoX2oq_panel h3{color:var(--dsw-alias-label-primary);align-items:center;gap:8px;margin:16px 0 8px 4px;font-size:13px;font-weight:500;display:flex}.VoX2oq_body section:first-of-type h3{margin-top:8px}.VoX2oq_roster{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;display:grid}.VoX2oq_member{--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);min-width:0;box-shadow:var(--dsw-elevation-stroke);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;border:0;border-radius:8px;align-items:flex-start;gap:8px;padding:10px 12px;display:flex}.VoX2oq_member:disabled{cursor:default}.VoX2oq_memberCurrent{--dsw-elevation-stroke-color:color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent);box-shadow:var(--dsw-elevation-stroke), inset 0 0 0 1px color-mix(in srgb, var(--dsw-alias-state-business-primary) 40%, transparent)}.VoX2oq_member:not(:disabled):hover,.VoX2oq_member:not(:disabled):focus-visible{--dsw-elevation-stroke-color:var(--dsw-alias-border-l3);box-shadow:var(--dsw-elevation-panel)}.VoX2oq_memberDot{flex:none;align-items:center;height:1lh;display:inline-flex}.VoX2oq_inactiveIcon{color:var(--dsw-alias-label-tertiary)}.VoX2oq_memberText{flex-direction:column;min-width:0;display:flex}.VoX2oq_memberName{align-items:center;gap:5px;min-width:0;display:inline-flex}.VoX2oq_memberNameText,.VoX2oq_memberText small{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.VoX2oq_memberModel{display:none}.VoX2oq_member:hover .VoX2oq_memberModel,.VoX2oq_member:focus-visible .VoX2oq_memberModel{display:inline}.VoX2oq_currentTag{text-overflow:ellipsis;flex:0 999 auto;min-width:0;padding:0 4px;font-size:10px;line-height:15px;display:inline-block;overflow:hidden}.VoX2oq_memberText small,.VoX2oq_meta{color:var(--dsw-alias-label-tertiary);font-size:11px}.VoX2oq_diagnostic,.VoX2oq_error,.VoX2oq_warning{color:var(--dsw-alias-state-error-primary)}.VoX2oq_tasks{flex-direction:column;gap:7px;display:flex}.VoX2oq_emptyNotice{color:var(--dsw-alias-label-tertiary);margin:16px 0 0 4px;font-size:12px}.VoX2oq_task{border:.5px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);border-radius:9px;padding:11px 13px}.VoX2oq_taskState{color:var(--dsw-alias-label-tertiary);align-items:center;gap:6px;margin-left:auto;font-size:11px;display:inline-flex}.VoX2oq_task p{color:var(--dsw-alias-label-secondary);white-space:pre-wrap;margin:5px 0;font-size:12px;line-height:18px}.VoX2oq_clampedDescription{-webkit-line-clamp:2;-webkit-box-orient:vertical;display:-webkit-box;overflow:hidden}.VoX2oq_expandToggle{float:right;color:var(--dsw-alias-label-tertiary);cursor:pointer;background:0 0;border:0;align-items:center;gap:2px;margin-left:10px;padding:0;font-size:11px;line-height:20px;display:inline-flex}.VoX2oq_expandToggle:hover,.VoX2oq_expandToggle:focus-visible{color:var(--dsw-alias-label-primary)}.VoX2oq_expandToggle svg{transition:transform .12s}.VoX2oq_expandToggleOpen{transform:rotate(180deg)}.VoX2oq_meta{line-height:20px}.VoX2oq_meta>span{margin-right:10px}.VoX2oq_notice,.VoX2oq_error{align-items:center;gap:6px;padding:9px;font-size:12px;display:flex}.VoX2oq_control{--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);margin-top:14px;box-shadow:var(--dsw-elevation-stroke);background:var(--dsw-alias-bg-layer-2);border-radius:9px;flex-direction:column;gap:6px;padding:10px 12px;display:flex}.VoX2oq_controlHead{align-items:center;gap:8px;display:flex}.VoX2oq_controlLabel{color:var(--dsw-alias-label-primary);flex:1;font-size:12px;font-weight:500}.VoX2oq_controlHint{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}.VoX2oq_toggle{min-width:66px;min-height:26px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-bg-layer-2));color:var(--dsw-alias-label-secondary);cursor:pointer;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600}.VoX2oq_toggle:hover:not(:disabled){border-color:var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary)}.VoX2oq_toggle:disabled{opacity:.5;cursor:default}.VoX2oq_toggleOn{background:color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent);border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent);color:var(--dsw-alias-state-business-primary)}";
 		const tagId = "dsh-agent-team-whaleforce-ui/TeamAction.module.css";
 		if (typeof document !== "undefined" && document.querySelector("style[data-plugin-css=" + JSON.stringify(tagId) + "]") === null) {
 			const tag = document.createElement("style");
@@ -22,6 +22,10 @@ window.__ModuleLoader__.load({
 			"body": "VoX2oq_body",
 			"clampedDescription": "VoX2oq_clampedDescription",
 			"count": "VoX2oq_count",
+			"control": "VoX2oq_control",
+			"controlHead": "VoX2oq_controlHead",
+			"controlHint": "VoX2oq_controlHint",
+			"controlLabel": "VoX2oq_controlLabel",
 			"currentTag": "VoX2oq_currentTag",
 			"diagnostic": "VoX2oq_diagnostic",
 			"emptyNotice": "VoX2oq_emptyNotice",
@@ -44,6 +48,8 @@ window.__ModuleLoader__.load({
 			"roster": "VoX2oq_roster",
 			"task": "VoX2oq_task",
 			"taskState": "VoX2oq_taskState",
+			"toggle": "VoX2oq_toggle",
+			"toggleOn": "VoX2oq_toggleOn",
 			"taskTitle": "VoX2oq_taskTitle",
 			"tasks": "VoX2oq_tasks",
 			"trigger": "VoX2oq_trigger",
@@ -86,6 +92,7 @@ window.__ModuleLoader__.load({
 			}
 		}
 		const WF_SET_MODEL_PATH = "/api/plugins/whaleforce/set-teammate-model";
+		const WF_WAIT_CONTROL_PATH = "/api/plugins/whaleforce/wait-control";
 		const WF_MODEL_CATALOG_PATH = "/api/plugins/whaleforce/model-catalog";
 		/** Fetch the Host-generation model catalog served by the WhaleForce core routes. */
 		async function fetchModelCatalog() {
@@ -319,6 +326,59 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/** Task card with a two-line description clamp expanded from a toggle in the meta row. */
+		/**
+		* Operator switch for the Team-wide wait tool. The state is host-owned and persisted;
+		* this row only renders it and flips it. No model-facing tool can change it.
+		*/
+		function WaitControlRow({ t, onError }) {
+			const [enabled, setEnabled] = (0, react.useState)(void 0);
+			const [busy, setBusy] = (0, react.useState)(false);
+			(0, react.useEffect)(() => {
+				let cancelled = false;
+				fetch(WF_WAIT_CONTROL_PATH).then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))).then((body) => {
+					if (!cancelled) setEnabled(body.waitEnabled === true);
+				}).catch(() => {
+					if (!cancelled) setEnabled(void 0);
+				});
+				return () => {
+					cancelled = true;
+				};
+			}, []);
+			const toggle = () => {
+				if (busy || enabled === void 0) return;
+				setBusy(true);
+				fetch(WF_WAIT_CONTROL_PATH, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ waitEnabled: !enabled })
+				}).then((response) => response.ok ? response.json() : response.json().then((body) => Promise.reject(new Error(body?.error ?? `HTTP ${response.status}`)), () => Promise.reject(new Error(`HTTP ${response.status}`)))).then((body) => {
+					setEnabled(body.waitEnabled === true);
+				}).catch((failure) => {
+					onError(failure instanceof Error ? failure.message : String(failure));
+				}).finally(() => setBusy(false));
+			};
+			if (enabled === void 0) return null;
+			return (0, react_jsx_runtime.jsxs)("section", {
+				className: TeamAction_module_css_default.control,
+				children: [(0, react_jsx_runtime.jsxs)("div", {
+					className: TeamAction_module_css_default.controlHead,
+					children: [(0, react_jsx_runtime.jsx)("span", {
+						className: TeamAction_module_css_default.controlLabel,
+						children: t("waitControl")
+					}), (0, react_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: enabled ? `${TeamAction_module_css_default.toggle} ${TeamAction_module_css_default.toggleOn}` : TeamAction_module_css_default.toggle,
+						"aria-pressed": enabled,
+						disabled: busy,
+						onClick: toggle,
+						children: t(enabled ? "waitControlOn" : "waitControlOff")
+					})]
+				}), (0, react_jsx_runtime.jsx)("span", {
+					className: TeamAction_module_css_default.controlHint,
+					children: t("waitControlHint")
+				})]
+			});
+		}
 		function TaskCard({ task, t }) {
 			const [expanded, setExpanded] = (0, react.useState)(false);
 			const [clamped, setClamped] = (0, react.useState)(false);
@@ -559,7 +619,11 @@ window.__ModuleLoader__.load({
 										t
 									}, task.id))
 								})] }) })
-							] })
+							] }),
+								team !== void 0 && sessionId === leadSessionId && (0, react_jsx_runtime.jsx)(WaitControlRow, {
+									t,
+									onError: setError
+								})
 						]
 					})
 				}), document.body)]
@@ -583,6 +647,10 @@ window.__ModuleLoader__.load({
 			"swapModel": "更换模型",
 			effort: "推理强度",
 			"effortDefault": "默认",
+			"waitControl": "团队等待工具",
+			"waitControlHint": "操作者开关：从所有成员的工具中隐藏 whaleforce_wait_agent。仅由人控制。",
+			"waitControlOn": "已启用",
+			"waitControlOff": "已禁用",
 			open: "打开成员会话",
 			current: "当前会话",
 			owner: "Owner",
@@ -614,6 +682,10 @@ window.__ModuleLoader__.load({
 			"swapModel": "Swap model",
 			effort: "Effort",
 			"effortDefault": "default",
+			"waitControl": "Wait tool",
+			"waitControlHint": "Operator switch: hides whaleforce_wait_agent from every member's tools. Human-controlled only.",
+			"waitControlOn": "Enabled",
+			"waitControlOff": "Disabled",
 			open: "Open member conversation",
 			current: "Current chat",
 			owner: "Owner",

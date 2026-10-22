@@ -1,3 +1,6 @@
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import z from "@deepseek-ai/schemastery";
 import { TeamTaskId } from "dsh-agent-team-whaleforce-core";
 import { defineTool } from "@deepseek-ai/dsh-tools";
@@ -27,6 +30,54 @@ Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VE
 Use the target returned by whaleforce_spawn_teammate or whaleforce_list_agents for whaleforce_send_message and whaleforce_interrupt_agent, or as owner when assigning or filtering shared tasks. whaleforce_send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before whaleforce_wait_agent, use whaleforce_list_agents and make sure another required member is running or provisioning; use whaleforce_send_message first when the required member is inactive. whaleforce_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer. The whaleforce_delete_teammate tool is a Lead-only extension for durable teammate deletion. The whaleforce_restore_teammate tool is a Lead-only extension that relinks one deleted teammate's durable child session back onto the roster under its original name with its full history: its next message resumes it, no new slot or name is spent, and tasks its deletion released are not reclaimed; omit target to list deleted teammates and whether their sessions remain. The whaleforce_set_teammate_model tool is a Lead-only extension that changes one teammate's model from its next turn; a step already in flight keeps its current model. It also accepts a swap for an inactive teammate: the selection is stored durably and applied when the teammate next activates. The model may come from any provider in the configured catalog; pass the provider explicitly when several providers serve the same model id. Both it and whaleforce_spawn_teammate accept an optional effort: a reasoning effort id the resolved route supports (for example off, low, medium, high, max), omitted to use the route default; an unsupported id fails with TEAM_MODEL_UNAVAILABLE.`;
 const ACTIVE_WAIT_STATUSES = new Set(["running", "provisioning"]);
 const NO_ACTIVE_PEER_MESSAGE = "No other Team member is running or provisioning. whaleforce_wait_agent cannot make progress or wake inactive teammates. Re-list with whaleforce_list_agents and whaleforce_team_task_list, then use whaleforce_send_message to wake each required inactive teammate before waiting again.";
+/* ---- Operator wait-tool control -------------------------------------------------
+ * The wait tool is the one Team capability that can burn a whole turn on nothing,
+ * so the human gets a hard switch for it. State lives outside the model: a file
+ * under the DSH home, written only by the browser-facing route below and never by
+ * a model-facing tool. Hidden from the model means unregistered, not "registered
+ * but refused", so a model cannot keep calling what it was told not to call.
+ */
+/** State file below the resolved DSH home. */
+const CONTROL_FILE_NAME = "dsh-plugin-agent-team-whaleforce.json";
+/** The wait guidance paragraphs replaced when the operator disables the tool. */
+const WAIT_GUIDANCE = "Before whaleforce_wait_agent, use whaleforce_list_agents and make sure another required member is running or provisioning; use whaleforce_send_message first when the required member is inactive. whaleforce_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer.";
+/** Replacement guidance used while the operator switch is off. */
+const WAIT_DISABLED_GUIDANCE = "The operator has disabled whaleforce_wait_agent for this Team: it is not an available tool, must not be called or emulated, and no polling or sleeping loop substitutes for it. To wait for teammates, message the required member with whaleforce_send_message, or end your turn and let their message resume you. The Lead waits for required teammates by ending its turn (or by doing other useful work), never by a wait tool.";
+/** Expand a leading `~`, `~/`, or `~\` to the user's home directory. */
+function expandHome(value) {
+	if (value === "~") return homedir();
+	if (value.startsWith("~/") || value.startsWith("~\\")) return join(homedir(), value.slice(2));
+	return value;
+}
+/** Resolve the harness home: `$DSH_HOME`, else `~/.dsh`. */
+function resolveDshHome(env = process.env) {
+	const override = env.DSH_HOME;
+	const selected = typeof override === "string" && override.trim() !== "" ? override : join(homedir(), ".dsh");
+	return resolve(expandHome(selected));
+}
+/** Read the operator control state; a missing or unreadable file means enabled. */
+function readWaitControl(env = process.env) {
+	try {
+		const stored = JSON.parse(readFileSync(join(resolveDshHome(env), CONTROL_FILE_NAME), "utf8"));
+		return { waitEnabled: stored?.waitEnabled !== false };
+	} catch {
+		return { waitEnabled: true };
+	}
+}
+/** Persist the operator control state atomically. */
+function writeWaitControl(control, env = process.env) {
+	const file = join(resolveDshHome(env), CONTROL_FILE_NAME);
+	mkdirSync(dirname(file), { recursive: true });
+	const temporary = `${file}.tmp`;
+	writeFileSync(temporary, `${JSON.stringify(control, null, 2)}\n`);
+	renameSync(temporary, file);
+}
+/** Build the Team policy for the current operator control state. */
+function policyFor(waitEnabled) {
+	if (waitEnabled) return POLICY;
+	if (!POLICY.includes(WAIT_GUIDANCE)) return `${POLICY}\n\n${WAIT_DISABLED_GUIDANCE}`;
+	return POLICY.replace(WAIT_GUIDANCE, WAIT_DISABLED_GUIDANCE);
+}
 /**
 * One model-facing roster row. The Lead pseudo-row omits the
 * teammate-only provisioning fields, so only identity, role, status, and
@@ -284,7 +335,7 @@ function callingAgent(agent, toolName) {
 	return agent;
 }
 /** Register the complete Team tool set in one exact Agent scope. */
-function install(agent, ctx, config) {
+function install(agent, ctx, config, control) {
 	const scoped = agent.ctx;
 	const disposers = [];
 	const register = (disposer) => {
@@ -294,7 +345,7 @@ function install(agent, ctx, config) {
 		register(scoped.systemPrompt.section({
 			name: "whaleforce-team:policy",
 			order: scoped.systemPrompt.getSectionOrder("TEAM_POLICY"),
-			text: POLICY
+			text: policyFor(control.waitEnabled)
 		}));
 		register(scoped.tools.register(defineTool({
 			name: "whaleforce_spawn_teammate",
@@ -402,7 +453,7 @@ To message another teammate, use whaleforce_send_message({ target: "<teammate na
 				return Promise.resolve(ctx.agentTeamsClone.listMembers(callingAgent(exec.agent, "whaleforce_list_agents")).map(modelMember));
 			}
 		})));
-		register(scoped.tools.register(defineTool({
+		if (control.waitEnabled) register(scoped.tools.register(defineTool({
 			name: "whaleforce_wait_agent",
 			description: "Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.",
 			parameters: { timeout_ms: {
@@ -676,10 +727,24 @@ function apply(ctx, config = {}) {
 		freshProvider: config.freshProvider ?? "spawn",
 		forkProvider: config.forkProvider ?? "fork"
 	};
+	/* One mutable control object shared by every install: toggling it and reinstalling
+	   is the only way the wait tool enters or leaves a member's model-facing schema. */
+	const control = readWaitControl();
 	const installed = /* @__PURE__ */ new Map();
 	const maybeInstall = (agent) => {
 		if (installed.has(agent) || ctx.agentTeamsClone.tryMembership(agent) === void 0) return;
-		installed.set(agent, install(agent, ctx, resolved));
+		installed.set(agent, install(agent, ctx, resolved, control));
+	};
+	const reinstallAll = () => {
+		for (const [agent, dispose] of installed) {
+			installed.delete(agent);
+			try {
+				dispose();
+			} catch (error) {
+				ctx.logger.warn(`tool-agent-team-whaleforce: reinstalling Team tools failed for one member: ${String(error)}`);
+			}
+		}
+		for (const agent of ctx.agents.list()) maybeInstall(agent);
 	};
 	for (const agent of ctx.agents.list()) maybeInstall(agent);
 	ctx.on("agent/created", ({ agent }) => {
@@ -688,6 +753,38 @@ function apply(ctx, config = {}) {
 	ctx.on("agent/disposed", ({ agent }) => {
 		installed.get(agent)?.();
 		installed.delete(agent);
+	});
+	/* Operator control route: the human toggles wait-tool exposure from the Team menu.
+	   The host's browser trust gates this route, and no model-facing tool reaches it. */
+	ctx.inject(["connection"], (connCtx) => {
+		connCtx.connection.fetch.register({
+			path: "/api/plugins/whaleforce/wait-control",
+			methods: ["GET", "POST"],
+			requestBody: "buffered",
+			fetch: async (request) => {
+				if (request.method === "GET") return Response.json({ waitEnabled: control.waitEnabled });
+				let body;
+				try {
+					body = await request.json();
+				} catch {
+					return Response.json({ error: "invalid JSON body" }, { status: 400 });
+				}
+				if (typeof body?.waitEnabled !== "boolean") return Response.json({ error: "waitEnabled must be a boolean" }, { status: 400 });
+				if (body.waitEnabled !== control.waitEnabled) {
+					const previous = control.waitEnabled;
+					control.waitEnabled = body.waitEnabled;
+					try {
+						writeWaitControl(control);
+					} catch (error) {
+						control.waitEnabled = previous;
+						return Response.json({ error: `failed to persist wait control: ${String(error)}` }, { status: 500 });
+					}
+					reinstallAll();
+				}
+				return Response.json({ waitEnabled: control.waitEnabled });
+			}
+		});
+		connCtx.logger.info("tool-agent-team-whaleforce: operator wait control live at /api/plugins/whaleforce/wait-control");
 	});
 	ctx.effect(() => () => {
 		for (const dispose of installed.values()) dispose();
