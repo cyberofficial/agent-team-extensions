@@ -36,9 +36,9 @@ files are kept in each package.
   `whaleforce_set_teammate_model`
   (final list: see Verification below).
   `whaleforce_delete_teammate` (Team Lead only) durably removes one settled teammate:
-  the deleted teammate's name is consumed forever and cannot be reused by a new spawn,
-  the roster slot frees for new members, and the deleted teammate's in-progress tasks
-  return to pending.
+  the deleted teammate's name is consumed by default unless the operator enabled name
+  reuse and the call passes `reuse_name: true`, the roster slot frees for new members,
+  and the deleted teammate's in-progress tasks return to pending.
   `whaleforce_restore_teammate` (Team Lead only) relinks one deleted teammate's durable
   child session back onto the roster under its original name with its full history: the
   next message resumes it, no new slot or name is spent, and tasks the deletion released
@@ -89,6 +89,18 @@ WhaleForce is NOT enabled by anything on this machine. To enable it in a profile
 - Functional addition: `whaleforce_delete_teammate` (durable teammate deletion,
   Team Lead only) ports the deletion feature recovered from the reference
   `agent-team-extensions` commit `1bd198d` into the built libs.
+- Functional addition: `whaleforce_restore_teammate` relinks a deleted member
+  from its durable child session, and per-teammate model routing gained explicit
+  provider plus reasoning-effort selection at spawn and on swap (durable across
+  cold resume).
+- Functional addition: opt-in teammate-name reuse (`allowNameReuse` config, or
+  the Lead-only Team-panel switch persisted under the DSH home). With it on, a
+  delete call may pass `reuse_name: true`; the old session stays on disk for
+  audit but stops being name-addressable, and a later spawn of that name starts
+  a fresh member. Default off: names still burn.
+- Functional addition: operator wait-tool switch in the Team panel removes
+  `whaleforce_wait_agent` from every member while off; persisted under the DSH
+  home and unreachable from model-facing tools.
 - Functional addition (implement map WHALEFORCE-sessions-ui-map): the
   `dsh-agent-team-whaleforce-sessions` package (new, no original) adds the grouped
   subagent-session catalog with Running, Idle, Completed, and Error groups, and

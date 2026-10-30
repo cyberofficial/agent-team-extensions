@@ -93,6 +93,7 @@ window.__ModuleLoader__.load({
 		}
 		const WF_SET_MODEL_PATH = "/api/plugins/whaleforce/set-teammate-model";
 		const WF_WAIT_CONTROL_PATH = "/api/plugins/whaleforce/wait-control";
+		const WF_NAME_REUSE_PATH = "/api/plugins/whaleforce/name-reuse";
 		const WF_MODEL_CATALOG_PATH = "/api/plugins/whaleforce/model-catalog";
 		/** Fetch the Host-generation model catalog served by the WhaleForce core routes. */
 		async function fetchModelCatalog() {
@@ -379,6 +380,62 @@ window.__ModuleLoader__.load({
 				})]
 			});
 		}
+		/**
+		* Operator switch for reusing a deleted teammate name. Host-owned and persisted;
+		* the row only renders it and flips it, and no model-facing tool can change it.
+		*/
+		function NameReuseRow({ t, onError }) {
+			const [enabled, setEnabled] = (0, react.useState)(void 0);
+			const [busy, setBusy] = (0, react.useState)(false);
+			(0, react.useEffect)(() => {
+				let cancelled = false;
+				fetch(WF_NAME_REUSE_PATH).then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))).then((body) => {
+					if (!cancelled) setEnabled(body.allowNameReuse === true);
+				}).catch(() => {
+					if (!cancelled) setEnabled(void 0);
+				});
+				return () => {
+					cancelled = true;
+				};
+			}, []);
+			const toggle = () => {
+				if (busy || enabled === void 0) return;
+				setBusy(true);
+				fetch(WF_NAME_REUSE_PATH, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ allowNameReuse: !enabled })
+				}).then((response) => response.ok ? response.json() : response.json().then((body) => Promise.reject(new Error(body?.error ?? `HTTP ${response.status}`)), () => Promise.reject(new Error(`HTTP ${response.status}`)))).then((body) => {
+					setEnabled(body.allowNameReuse === true);
+				}).catch((failure) => {
+					onError(failure instanceof Error ? failure.message : String(failure));
+				}).finally(() => setBusy(false));
+			};
+			if (enabled === void 0) return null;
+			return (0, react_jsx_runtime.jsxs)("section", {
+				className: TeamAction_module_css_default.control,
+				children: [(0, react_jsx_runtime.jsxs)("div", {
+					className: TeamAction_module_css_default.controlHead,
+					children: [(0, react_jsx_runtime.jsx)("span", {
+						className: TeamAction_module_css_default.controlLabel,
+						children: t("nameReuse")
+					}), (0, react_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: enabled ? `${TeamAction_module_css_default.toggle} ${TeamAction_module_css_default.toggleOn}` : TeamAction_module_css_default.toggle,
+						"aria-pressed": enabled,
+						disabled: busy,
+						onClick: toggle,
+						children: t(enabled ? "nameReuseOn" : "nameReuseOff")
+					})]
+				}), (0, react_jsx_runtime.jsx)("span", {
+					className: TeamAction_module_css_default.controlHint,
+					children: t("nameReuseHint")
+				}), (0, react_jsx_runtime.jsx)("span", {
+					className: TeamAction_module_css_default.warning,
+					children: t("nameReuseWarning")
+				})]
+			});
+		}
 		function TaskCard({ task, t }) {
 			const [expanded, setExpanded] = (0, react.useState)(false);
 			const [clamped, setClamped] = (0, react.useState)(false);
@@ -620,9 +677,14 @@ window.__ModuleLoader__.load({
 									}, task.id))
 								})] }) })
 							] }),
-								team !== void 0 && sessionId === leadSessionId && (0, react_jsx_runtime.jsx)(WaitControlRow, {
-									t,
-									onError: setError
+								team !== void 0 && sessionId === leadSessionId && (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, {
+									children: [(0, react_jsx_runtime.jsx)(WaitControlRow, {
+										t,
+										onError: setError
+									}), (0, react_jsx_runtime.jsx)(NameReuseRow, {
+										t,
+										onError: setError
+									})]
 								})
 						]
 					})
@@ -651,6 +713,11 @@ window.__ModuleLoader__.load({
 			"waitControlHint": "操作者开关：从所有成员的工具中隐藏 whaleforce_wait_agent。仅由人控制。",
 			"waitControlOn": "已启用",
 			"waitControlOff": "已禁用",
+			"nameReuse": "名称复用（不烧名字）",
+			"nameReuseHint": "操作者开关：允许删除后的成员名被重新 spawn。仅由人控制，默认关闭（名字永久烧毁）。",
+			"nameReuseWarning": "警告：复用名称后，旧会话无法再按名字恢复，只能留在磁盘上审计。",
+			"nameReuseOn": "已允许",
+			"nameReuseOff": "已烧毁",
 			open: "打开成员会话",
 			current: "当前会话",
 			owner: "Owner",
@@ -686,6 +753,11 @@ window.__ModuleLoader__.load({
 			"waitControlHint": "Operator switch: hides whaleforce_wait_agent from every member's tools. Human-controlled only.",
 			"waitControlOn": "Enabled",
 			"waitControlOff": "Disabled",
+			"nameReuse": "Name reuse (unburn names)",
+			"nameReuseHint": "Operator switch: lets a deleted teammate name be spawned again. Human-controlled only; off by default (names burn).",
+			"nameReuseWarning": "Warning: reusing a name orphans the old session from name-based restore; it stays on disk for audit only.",
+			"nameReuseOn": "Allowed",
+			"nameReuseOff": "Burned",
 			open: "Open member conversation",
 			current: "Current chat",
 			owner: "Owner",

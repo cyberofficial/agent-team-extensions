@@ -27,7 +27,7 @@ The Team Lead and all teammates share the same working directory and filesystem.
 
 Prefer read/edit/write for file changes. If a file operation returns FS_STALE_VERSION, read the current file, rebase your intended change onto the new content, and retry. Bash, formatters, code generators, and scripts are not fully protected by the filesystem version guard; coordinate them explicitly and have the Lead review the final diff and run tests.
 
-Use the target returned by whaleforce_spawn_teammate or whaleforce_list_agents for whaleforce_send_message and whaleforce_interrupt_agent, or as owner when assigning or filtering shared tasks. whaleforce_send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before whaleforce_wait_agent, use whaleforce_list_agents and make sure another required member is running or provisioning; use whaleforce_send_message first when the required member is inactive. whaleforce_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer. The whaleforce_delete_teammate tool is a Lead-only extension for durable teammate deletion. The whaleforce_restore_teammate tool is a Lead-only extension that relinks one deleted teammate's durable child session back onto the roster under its original name with its full history: its next message resumes it, no new slot or name is spent, and tasks its deletion released are not reclaimed; omit target to list deleted teammates and whether their sessions remain. The whaleforce_set_teammate_model tool is a Lead-only extension that changes one teammate's model from its next turn; a step already in flight keeps its current model. It also accepts a swap for an inactive teammate: the selection is stored durably and applied when the teammate next activates. The model may come from any provider in the configured catalog; pass the provider explicitly when several providers serve the same model id. Both it and whaleforce_spawn_teammate accept an optional effort: a reasoning effort id the resolved route supports (for example off, low, medium, high, max), omitted to use the route default; an unsupported id fails with TEAM_MODEL_UNAVAILABLE.`;
+Use the target returned by whaleforce_spawn_teammate or whaleforce_list_agents for whaleforce_send_message and whaleforce_interrupt_agent, or as owner when assigning or filtering shared tasks. whaleforce_send_message steers a running target at its nearest step boundary and starts or resumes an inactive target. inactive means no turn is executing; it does not describe task completion, success, failure, or waiting for other agents. provisioning means member creation is in progress; failed means member creation failed. A delivered peer item starts with its stable message id and sender name. A successful send is already durable even when its result says queued; do not resend it. Shared-task workflow is list, get, claim with the current revision, perform the work, then complete. Task readiness never starts an owner. Before whaleforce_wait_agent, use whaleforce_list_agents and make sure another required member is running or provisioning; use whaleforce_send_message first when the required member is inactive. whaleforce_wait_agent observes only changes after that call starts, never wakes a member, and returns noProgress immediately when no other member can produce a change. Re-list after wakeup or timeout. The Lead must wait for required teammates before giving the final answer. The whaleforce_delete_teammate tool is a Lead-only extension for durable teammate deletion; when the operator has enabled name reuse, pass reuse_name: true to release the name in the same transaction so a later spawn can create a fresh member with it (the old durable session then stops being name-addressable). The whaleforce_restore_teammate tool is a Lead-only extension that relinks one deleted teammate's durable child session back onto the roster under its original name with its full history: its next message resumes it, no new slot or name is spent, and tasks its deletion released are not reclaimed; omit target to list deleted teammates and whether their sessions remain. A name that a newer member reused, or that was released by reuse_name, cannot restore the older session by name. The whaleforce_set_teammate_model tool is a Lead-only extension that changes one teammate's model from its next turn; a step already in flight keeps its current model. It also accepts a swap for an inactive teammate: the selection is stored durably and applied when the teammate next activates. The model may come from any provider in the configured catalog; pass the provider explicitly when several providers serve the same model id. Both it and whaleforce_spawn_teammate accept an optional effort: a reasoning effort id the resolved route supports (for example off, low, medium, high, max), omitted to use the route default; an unsupported id fails with TEAM_MODEL_UNAVAILABLE.`;
 const ACTIVE_WAIT_STATUSES = new Set(["running", "provisioning"]);
 const NO_ACTIVE_PEER_MESSAGE = "No other Team member is running or provisioning. whaleforce_wait_agent cannot make progress or wake inactive teammates. Re-list with whaleforce_list_agents and whaleforce_team_task_list, then use whaleforce_send_message to wake each required inactive teammate before waiting again.";
 /* ---- Operator wait-tool control -------------------------------------------------
@@ -287,6 +287,10 @@ const DELETE_VALUE_SCHEMA = {
 			type: "array",
 			required: true,
 			items: { type: "string" }
+		},
+		nameReleased: {
+			type: "boolean",
+			description: "Whether this deletion explicitly released the name for reuse."
 		}
 	}
 };
@@ -490,26 +494,33 @@ To message another teammate, use whaleforce_send_message({ target: "<teammate na
 		})));
 		register(scoped.tools.register(defineTool({
 			name: "whaleforce_delete_teammate",
-			description: "Delete one teammate: stop its live agent, remove it from the roster, and release its in-progress tasks back to pending. The teammate name is consumed forever and cannot be reused by a new spawn; whaleforce_restore_teammate restores the original member from its durable session. Team Lead only.",
-			parameters: { target: {
-				type: "string",
-				required: true,
-				description: "Teammate target returned by whaleforce_spawn_teammate or whaleforce_list_agents."
-			} },
+			description: "Delete one teammate: stop its live agent, remove it from the roster, and release its in-progress tasks back to pending. By default the teammate name is consumed forever and cannot be reused by a new spawn; whaleforce_restore_teammate restores the original member from its durable session. When the operator has enabled name reuse, pass reuse_name: true to release the name in the same transaction so a subsequent spawn can create a fresh member under it — the old durable session then stops being name-addressable. Team Lead only.",
+			parameters: {
+				target: {
+					type: "string",
+					required: true,
+					description: "Teammate target returned by whaleforce_spawn_teammate or whaleforce_list_agents."
+				},
+				reuse_name: {
+					type: "boolean",
+					description: "Release the name for a new spawn after deleting (default false). Requires the operator's name-reuse switch, else TEAM_NAME_REUSE_DISABLED."
+				}
+			},
 			output: jsonOutput(DELETE_VALUE_SCHEMA),
 			async execute(args, exec) {
-				const result = await ctx.agentTeamsClone.deleteTeammate(callingAgent(exec.agent, "whaleforce_delete_teammate"), args.target);
+				const result = await ctx.agentTeamsClone.deleteTeammate(callingAgent(exec.agent, "whaleforce_delete_teammate"), args.target, { reuseName: args.reuse_name === true });
 				return {
 					deleted: true,
 					target: result.target,
 					previousStatus: result.previousStatus,
-					releasedTasks: result.releasedTasks
+					releasedTasks: result.releasedTasks,
+					nameReleased: result.nameReleased
 				};
 			}
 		})));
 		register(scoped.tools.register(defineTool({
 			name: "whaleforce_restore_teammate",
-			description: "Restore one deleted teammate by relinking its durable child session: the roster row returns as active under its original name with its full history, and its next message resumes it. Omit target to list deleted teammates and whether their sessions remain. Tasks the deletion released are not reclaimed. Team Lead only.",
+			description: "Restore one deleted teammate by relinking its durable child session: the roster row returns as active under its original name with its full history, and its next message resumes it. Omit target to list deleted teammates and whether their sessions remain. Tasks the deletion released are not reclaimed. A name held by a live member, reused by a newer member, or released by reuse_name is not name-addressable for restore. Team Lead only.",
 			parameters: { target: {
 				type: "string",
 				description: "Name of the deleted teammate to restore. Omit to list restorable deleted teammates."

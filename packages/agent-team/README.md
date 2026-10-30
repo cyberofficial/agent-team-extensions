@@ -55,12 +55,13 @@ With the tools installed, the model does the rest on request - for example, "cre
 | `maxPendingMessagesPerMember` | `64` | Maximum queued messages for one member |
 | `maxMessageBytes` | `65,536` | Maximum size of one sent message |
 | `disposalTimeoutMs` | `5,000` | Time allowed for shutdown cleanup |
+| `allowNameReuse` | `false` | Deployment default for the opt-in name-reuse switch (deleted teammate names may be spawned again); the operator toggle in the Team panel overrides it at runtime |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#dsh-agent-team-whaleforce-core) is the exhaustive source for every accepted field and its JSDoc.
 
 ### Teammates
 
-Ask the Lead to create a teammate: give it a unique lowercase name such as `reviewer` and describe its job. A teammate starts fresh with no memory of the Lead's conversation, or as a fork that inherits the Lead's completed turns; the creation request chooses which. Teammate names are permanent - even a teammate whose creation failed keeps its name, and no name is ever reused.
+Ask the Lead to create a teammate: give it a unique lowercase name such as `reviewer` and describe its job. A teammate starts fresh with no memory of the Lead's conversation, or as a fork that inherits the Lead's completed turns; the creation request chooses which. Teammate names are permanent by default - even a teammate whose creation failed keeps its name, and no name is ever reused. A live member always keeps its name; only a deleted name can be reused, and only when the operator enables name reuse (`allowNameReuse` config or the Team panel switch). A delete call can then pass `reuse_name: true`, which marks the tombstone `nameReleased` and lets a subsequent creation take the name with a brand-new member id and child Session. The old child Session is never name-addressable again: restore and the restorable scan skip it, and a name held by a live member, released for reuse, or shared by several deleted generations cannot be restored by name. With the switch off (the default) a deleted name still throws `TEAM_MEMBER_NAME_TAKEN`, and delete with `reuse_name` throws `TEAM_NAME_REUSE_DISABLED`.
 
 The roster shows every member with its role (`lead` or `teammate`) and current status: `running`, `inactive` (no turn is executing, whether loaded or stored), `provisioning`, or `failed`. A member that is not loaded receives its messages when it wakes.
 
@@ -130,7 +131,7 @@ The [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-
 
 ### Team identity and roster
 
-Every ordinary runtime root is the implicit Lead of a Team whose `TeamId` equals its `SessionId`; there is no creation event, and durable state begins with the first member, message, or task record. `spawnTeammate()` first appends and flushes a `provisioning` member record, then asks the configured provider to create the reserved child; a provider failure appends a durable `failed` member. A fresh child starts with no Lead history; a fork child captures the Lead's completed-turn prefix once. Recovery reconciles an unterminated provisioning record against the child's independently persisted Session: a matching direct-parent and continuable descriptor plus a recorded initial user message produces `active`, and anything else produces `failed`. If recovery wins a same-process race, the creator accepts the terminal state or reports `TEAM_PROVISIONING_CONFLICT` and drains the child. Names are reserved by the first provisioning record and never reused.
+Every ordinary runtime root is the implicit Lead of a Team whose `TeamId` equals its `SessionId`; there is no creation event, and durable state begins with the first member, message, or task record. `spawnTeammate()` first appends and flushes a `provisioning` member record, then asks the configured provider to create the reserved child; a provider failure appends a durable `failed` member. A fresh child starts with no Lead history; a fork child captures the Lead's completed-turn prefix once. Recovery reconciles an unterminated provisioning record against the child's independently persisted Session: a matching direct-parent and continuable descriptor plus a recorded initial user message produces `active`, and anything else produces `failed`. If recovery wins a same-process race, the creator accepts the terminal state or reports `TEAM_PROVISIONING_CONFLICT` and drains the child. Names are reserved by the first provisioning record and reused only when the operator enabled name reuse and an explicit `reuse_name` deletion released the previous holder.
 
 ### Durable mailbox
 
@@ -209,7 +210,7 @@ These limits describe what a team cannot do yet or what needs special operationa
 - **Experimental prototype with no stability promise** - the package is public, but its contracts can change freely while it incubates.
 - **One process and one shared checkout** - members share cwd and observe edits immediately; this package provides no worktree, remote member, merge, or filesystem lock.
 - **Advisory write scopes** - Bash, formatters, code generators, and direct external writers can bypass filesystem version checks; Leads must coordinate ownership and review the final diff.
-- **Flat roster, Lead-owned lifecycle** - only the Lead creates direct teammates; there is no nested Team or rename. The Lead can durably delete a settled teammate, freeing its roster slot; names are never reused.
+- **Flat roster, Lead-owned lifecycle** - only the Lead creates direct teammates; there is no nested Team or rename. The Lead can durably delete a settled teammate, freeing its roster slot; names are reused only under the opt-in name-reuse switch.
 - **No automatic ownership release** - inactivity, interruption, process exit, and failed work do not release a task owner.
 - **Mailbox is not cross-process exactly-once** - concurrent harness processes over one Team are unsupported.
 

@@ -55,12 +55,13 @@ kind: "package-reference"
 | `maxPendingMessagesPerMember` | `64` | 单个成员最多可排队的消息数 |
 | `maxMessageBytes` | `65,536` | 单条发送消息的最大尺寸 |
 | `disposalTimeoutMs` | `5,000` | 关闭清理允许的时间 |
+| `allowNameReuse` | `false` | 名称复用开关（允许重新 spawn 已删除成员的名字）的部署默认值；团队面板中的操作者开关在运行时覆盖它 |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#dsh-agent-team-whaleforce-core)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
 ### Teammate
 
-请 Lead 创建 teammate：给它一个唯一的小写名字（例如 `reviewer`）并描述其职责。teammate 可以 fresh 启动（不携带 Lead 对话的任何记忆），也可以作为 fork 启动（继承 Lead 已完成的轮次）；创建请求决定用哪种。teammate 名字是永久的--即使创建失败的 teammate 也保留其名字，任何名字都不会被复用。
+请 Lead 创建 teammate：给它一个唯一的小写名字（例如 `reviewer`）并描述其职责。teammate 可以 fresh 启动（不携带 Lead 对话的任何记忆），也可以作为 fork 启动（继承 Lead 已完成的轮次）；创建请求决定用哪种。teammate 名字默认是永久的--即使创建失败的 teammate 也保留其名字，任何名字都不会被复用。live 成员始终保留其名字；只有已删除的名字可以复用，且仅当操作者启用名称复用（`allowNameReuse` 配置或团队面板开关）时生效。此时 delete 调用可传 `reuse_name: true`，将墓碑标记为 `nameReleased`，后续创建即可使用该名字，并获得全新的成员 id 与全新的 child session。旧 child session 不再能按名字寻址：restore 与可恢复列表都会跳过它；名字被 live 成员持有、被显式释放、或存在多个已删除世代时，都无法按名字恢复。开关关闭（默认）时，已删除名字仍会抛 `TEAM_MEMBER_NAME_TAKEN`，带 `reuse_name` 的 delete 会抛 `TEAM_NAME_REUSE_DISABLED`。
 
 roster 显示每个成员的职责（`lead` 或 `teammate`）与当前状态：`running`、`inactive`（当前没有执行轮次，包括已加载和仅存储的成员）、`provisioning` 或 `failed`。未加载的成员会在唤醒后收到其消息。
 
@@ -130,7 +131,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 ### Team 身份与 roster
 
-每个普通运行时 root 都是一个隐式 Team 的 Lead，其 `TeamId` 等于 `SessionId`；不存在创建事件，持久状态从第一条成员、消息或任务记录开始。`spawnTeammate()` 先追加并 flush 一条 `provisioning` 成员记录，再要求配置的提供方创建预留 child；提供方失败会追加一条持久的 `failed` 成员。fresh child 不携带 Lead 历史；fork child 只捕获一次 Lead 的已完成 turn 前缀。恢复把未终结的 provisioning 记录对照 child 独立持久化的会话进行对账：直接 parent 与 continuable descriptor 匹配、且初始用户消息已记录则产生 `active`，其他任何情况都产生 `failed`。如果恢复在同进程竞争中先完成，creator 会接受终态，或报告 `TEAM_PROVISIONING_CONFLICT` 并 drain 该 child。名字由第一条 provisioning 记录保留，且永不复用。
+每个普通运行时 root 都是一个隐式 Team 的 Lead，其 `TeamId` 等于 `SessionId`；不存在创建事件，持久状态从第一条成员、消息或任务记录开始。`spawnTeammate()` 先追加并 flush 一条 `provisioning` 成员记录，再要求配置的提供方创建预留 child；提供方失败会追加一条持久的 `failed` 成员。fresh child 不携带 Lead 历史；fork child 只捕获一次 Lead 的已完成 turn 前缀。恢复把未终结的 provisioning 记录对照 child 独立持久化的会话进行对账：直接 parent 与 continuable descriptor 匹配、且初始用户消息已记录则产生 `active`，其他任何情况都产生 `failed`。如果恢复在同进程竞争中先完成，creator 会接受终态，或报告 `TEAM_PROVISIONING_CONFLICT` 并 drain 该 child。名字由第一条 provisioning 记录保留；仅当操作者启用名称复用、且显式 `reuse_name` 删除释放了前一个持有者时才会复用。
 
 ### 持久 mailbox
 
@@ -209,7 +210,7 @@ Peer 消息追加在 target 可复用历史前缀之后。冷恢复会先复用�
 - **实验原型，无稳定性承诺**--本包公开发布，但孵化期间约定仍可自由变更。
 - **单进程、共享 checkout**--成员共享 cwd，修改立即可见；本包不提供 worktree、远端成员、merge 或文件锁。
 - **write scope 仅作提示**--Bash、formatter、代码生成器与直接外部写入可以绕过文件版本检查；Lead 必须协调 owner 并检查最终 diff。
-- **扁平 roster，Lead 掌控生命周期**--只有 Lead 可以创建直接 teammate；不支持嵌套 Team 或重命名。Lead 可以持久删除已就绪的 teammate 并释放其 roster 槽位；名字永不复用。
+- **扁平 roster，Lead 掌控生命周期**--只有 Lead 可以创建直接 teammate；不支持嵌套 Team 或重命名。Lead 可以持久删除已就绪的 teammate 并释放其 roster 槽位；名字仅在可选的名称复用开关下复用。
 - **不会自动释放 owner**--成员不活动、interrupt、进程退出与工作失败都不会释放任务 owner。
 - **mailbox 不保证跨进程 exactly-once**--不支持多个 harness 进程并发操作同一 Team。
 

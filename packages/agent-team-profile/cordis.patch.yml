@@ -25,6 +25,11 @@
         maxPendingMessagesPerMember: 64
         maxMessageBytes: 65536
         disposalTimeoutMs: 5000
+        # Opt-in name reuse for delete-and-recreate flows such as cut-point
+        # compaction. Deployment default only: the operator switch in the Team
+        # panel stores a runtime override at
+        # $DSH_HOME/dsh-plugin-agent-team-whaleforce-core.json and wins when set.
+        allowNameReuse: false
 
     - id: tool-agent-team-whaleforce
       name: 'dsh-agent-team-whaleforce-tools'

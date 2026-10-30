@@ -90,7 +90,7 @@ The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied
 
 #### What the model sees
 
-The Team policy and schemas belong to [`dsh-agent-team-whaleforce-tools`](../tool-agent-team/README.md). This bundle changes composition only: Team-scoped `whaleforce_list_agents`, `whaleforce_send_message`, and `whaleforce_interrupt_agent` replace the disabled global continuable-child controls. `whaleforce_spawn_teammate` is the direct delegation tool. `whaleforce_delete_teammate` is a Lead-only durable deletion tool: the deleted teammate's name is consumed forever and cannot be reused, the roster slot frees for new members, and the deleted teammate's in-progress tasks return to pending. Workflow’s `agent()` calls create fresh one-shot children; their prompts must contain the context needed for their tasks.
+The Team policy and schemas belong to [`dsh-agent-team-whaleforce-tools`](../tool-agent-team/README.md). This bundle changes composition only: Team-scoped `whaleforce_list_agents`, `whaleforce_send_message`, and `whaleforce_interrupt_agent` replace the disabled global continuable-child controls. `whaleforce_spawn_teammate` is the direct delegation tool. `whaleforce_delete_teammate` is a Lead-only durable deletion tool: the deleted teammate's name is consumed unless the operator enabled name reuse and the call passes `reuse_name: true`, the roster slot frees for new members, and the deleted teammate's in-progress tasks return to pending. Workflow’s `agent()` calls create fresh one-shot children; their prompts must contain the context needed for their tasks.
 
 #### Token effect
 

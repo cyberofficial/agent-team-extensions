@@ -3,6 +3,9 @@ import z from "@deepseek-ai/schemastery";
 import { inspect } from "node:util";
 import { HarnessError, createUserMessage } from "@deepseek-ai/dsh-llm";
 import { randomUUID } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { brandString } from "@deepseek-ai/dsh-brand";
 import { steerHostSubagentPrompt } from "@deepseek-ai/dsh-subagent/internal";
 import { foldSubagentDescriptor } from "@deepseek-ai/dsh-subagent";
@@ -30,6 +33,49 @@ function errorMessage(error) {
 		compact: true,
 		depth: 4
 	});
+}
+//#endregion
+//#region lib/types/name-reuse.js
+/** Operator-owned opt-in switch that lets a deleted teammate name be reused. */
+/** State file below the resolved DSH home. */
+const NAME_REUSE_STATE_FILE = "dsh-plugin-agent-team-whaleforce-core.json";
+/** Expand a leading `~`, `~/`, or `~\` to the user's home directory. */
+function expandHome(value) {
+	if (value === "~") return homedir();
+	if (value.startsWith("~/") || value.startsWith("~\\")) return join(homedir(), value.slice(2));
+	return value;
+}
+/** Resolve the harness home: `$DSH_HOME`, else `~/.dsh`. */
+function resolveDshHome(env = process.env) {
+	const override = env.DSH_HOME;
+	const selected = typeof override === "string" && override.trim() !== "" ? override : join(homedir(), ".dsh");
+	return resolve(expandHome(selected));
+}
+/**
+* Read the persisted operator override; absent or unreadable means "use the
+* deployment config default", never a silent enable.
+* @param env - process environment used to locate the DSH home.
+* @returns the persisted boolean, or undefined when no usable override exists.
+*/
+function readNameReuseOverride(env = process.env) {
+	try {
+		const stored = JSON.parse(readFileSync(join(resolveDshHome(env), NAME_REUSE_STATE_FILE), "utf8"));
+		return typeof stored?.allowNameReuse === "boolean" ? stored.allowNameReuse : void 0;
+	} catch {
+		return void 0;
+	}
+}
+/**
+* Persist the operator override atomically.
+* @param allowNameReuse - operator-selected effective switch.
+* @param env - process environment used to locate the DSH home.
+*/
+function writeNameReuseOverride(allowNameReuse, env = process.env) {
+	const file = join(resolveDshHome(env), NAME_REUSE_STATE_FILE);
+	mkdirSync(dirname(file), { recursive: true });
+	const temporary = `${file}.tmp`;
+	writeFileSync(temporary, `${JSON.stringify({ allowNameReuse }, null, 2)}\n`);
+	renameSync(temporary, file);
 }
 //#endregion
 //#region lib/types/activity.js
@@ -354,8 +400,9 @@ function resolveActiveMember(root, state, rawName) {
 		id: root.id,
 		name
 	};
-	const member = state.members.find((candidate) => candidate.name === name);
-	if (member === void 0 || member.phase !== "active") throw new TeamError(`active teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+	/* A reused name can have deleted generations before the live row; resolve the live holder only. */
+	const member = state.members.find((candidate) => candidate.name === name && candidate.phase === "active");
+	if (member === void 0) throw new TeamError(`active teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
 	return {
 		id: member.id,
 		name
@@ -390,12 +437,14 @@ var TeamRoster = class {
 	* @param journal - authoritative Lead-log transaction owner.
 	* @param lifecycle - shared Team runtime admission cutoff.
 	* @param maxMembers - maximum immutable roster entries per Team.
+	* @param nameReuseEnabled - current operator switch for reusing deleted names.
 	*/
-	constructor(ctx, journal, lifecycle, maxMembers) {
+	constructor(ctx, journal, lifecycle, maxMembers, nameReuseEnabled) {
 		this.ctx = ctx;
 		this.journal = journal;
 		this.lifecycle = lifecycle;
 		this.maxMembers = maxMembers;
+		this.nameReuseEnabled = nameReuseEnabled;
 	}
 	/**
 	* Resolve one exact live Agent's Team role.
@@ -536,19 +585,24 @@ var TeamRoster = class {
 	}
 	/**
 	* Durably remove one settled teammate from the roster and stop its live child.
-	* The teammate name remains permanently consumed; only non-deleted members count toward the member limit.
+	* The teammate name is consumed by default; with the operator's name-reuse switch on,
+	* `options.reuseName` releases it in the same transaction so a later spawn can create
+	* a fresh member under it. Only non-deleted members count toward the member limit.
 	* @param caller - exact live Lead Agent.
 	* @param targetName - durable teammate name.
-	* @returns the status sampled before removal and the removed member id.
+	* @param options - optional reuseName: release the name for a new spawn (operator switch required).
+	* @returns the status sampled before removal, the removed member id, and whether the name was released.
 	*/
-	async delete(caller, targetName) {
+	async delete(caller, targetName, options = {}) {
 		const membership = this.membership(caller);
 		if (membership.role !== "lead") throw new TeamError("only the Team Lead can delete teammates", "TEAM_LEAD_REQUIRED");
 		const root = membership.root;
 		const name = targetName.trim();
 		if (name === "lead") throw new TeamError("the Team Lead cannot be deleted", "TEAM_INVALID_TARGET");
-		const member = this.journal.state(root).members.find((candidate) => candidate.name === name);
-		if (member === void 0 || member.phase === "deleted") throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+		const reuseName = options.reuseName === true;
+		if (reuseName && !this.nameReuseEnabled()) throw new TeamError("name reuse is disabled for this Team; enable it in the Team panel or set allowNameReuse in the plugin config", "TEAM_NAME_REUSE_DISABLED");
+		const member = this.journal.state(root).members.find((candidate) => candidate.name === name && candidate.phase !== "deleted");
+		if (member === void 0) throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
 		if (member.phase === "provisioning") throw new TeamError(`teammate "${name}" is still provisioning and cannot be deleted yet`, "TEAM_MEMBER_PROVISIONING");
 		const previousStatus = member.phase === "failed" ? "failed" : availability(this.ctx.agents.get(member.id));
 		/* Stop the live child BEFORE committing the deleted event: a child whose roster row is already deleted would be misread by tryMembership as a new implicit Lead during the window before disposal. */
@@ -565,7 +619,9 @@ var TeamRoster = class {
 			if (current.phase === "provisioning") throw new TeamError(`teammate "${name}" is still provisioning and cannot be deleted yet`, "TEAM_MEMBER_PROVISIONING");
 			const deleted = {
 				...current,
-				phase: "deleted"
+				phase: "deleted",
+				/* An explicit reuse deletion orphans the old durable session from name-based restore. */
+				...reuseName ? { nameReleased: true } : {}
 			};
 			await this.journal.appendAndFlush(root, "team/member", {
 				version: 2,
@@ -573,7 +629,11 @@ var TeamRoster = class {
 				member: deleted
 			});
 		});
-		return { previousStatus, memberId: member.id };
+		return {
+			previousStatus,
+			memberId: member.id,
+			nameReleased: reuseName
+		};
 	}
 	/**
 	* List deleted teammates and whether their durable child Sessions remain,
@@ -586,8 +646,13 @@ var TeamRoster = class {
 		if (membership.role !== "lead") throw new TeamError("only the Team Lead can scan for restorable teammates", "TEAM_LEAD_REQUIRED");
 		const root = membership.root;
 		const rows = [];
-		for (const member of this.journal.state(root).members) {
+		const state = this.journal.state(root);
+		for (const member of state.members) {
 			if (member.phase !== "deleted") continue;
+			/* A released name, a live holder, or several deleted generations make the session non-addressable by name. */
+			if (member.nameReleased === true) continue;
+			const sameName = state.members.filter((candidate) => candidate.name === member.name);
+			if (sameName.length > 1 || sameName.some((candidate) => candidate.phase !== "deleted")) continue;
 			let session = "missing";
 			try {
 				const stat = await this.ctx.sessionPersistence.stat(member.id);
@@ -619,9 +684,14 @@ var TeamRoster = class {
 		const root = membership.root;
 		const name = targetName.trim();
 		if (name === "lead") throw new TeamError("the Team Lead cannot be restored", "TEAM_INVALID_TARGET");
-		const member = this.journal.state(root).members.find((candidate) => candidate.name === name);
-		if (member === void 0) throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
-		if (member.phase !== "deleted") throw new TeamError(`teammate "${name}" is ${member.phase}, not deleted`, "TEAM_INVALID_TARGET");
+		const holders = this.journal.state(root).members.filter((candidate) => candidate.name === name);
+		if (holders.length === 0) throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+		/* A reused name belongs to the live holder: the older deleted sessions are orphaned from name-based restore. */
+		const live = holders.find((candidate) => candidate.phase !== "deleted");
+		if (live !== void 0) throw new TeamError(`teammate name "${name}" is held by a live member (${live.phase}); the deleted predecessor is not name-addressable`, "TEAM_NAME_AMBIGUOUS");
+		if (holders.length > 1) throw new TeamError(`teammate name "${name}" has ${holders.length} deleted generations and cannot be restored by name`, "TEAM_NAME_AMBIGUOUS");
+		const member = holders[0];
+		if (member.nameReleased === true) throw new TeamError(`teammate "${name}" was deleted with name reuse; its durable session is not name-addressable`, "TEAM_MEMBER_NOT_RESTORABLE");
 		/* Validate the stored child Session before admitting the row: restoring without it would strand the name on an unresumable member. */
 		const stored = await readPersistedSession(this.ctx.sessionPersistence, member.id);
 		const descriptor = foldSubagentDescriptor(stored.events.slice(stored.inheritedEventCount));
@@ -631,6 +701,9 @@ var TeamRoster = class {
 			const current = this.journal.state(root).members.find((candidate) => candidate.id === member.id);
 			if (current === void 0) throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
 			if (current.phase !== "deleted") throw new TeamError(`teammate "${name}" is ${current.phase}, not deleted`, "TEAM_INVALID_TARGET");
+			/* Re-check inside the transaction: a concurrent spawn may have taken the released name. */
+			const competing = this.journal.state(root).members.some((candidate) => candidate.id !== member.id && candidate.name === name && candidate.phase !== "deleted");
+			if (competing) throw new TeamError(`teammate name "${name}" is held by a live member; the deleted predecessor is not name-addressable`, "TEAM_NAME_AMBIGUOUS");
 			restored = {
 				...current,
 				phase: "active"
@@ -951,7 +1024,8 @@ var TeamRoster = class {
 		};
 		await this.journal.transact(root.id, async () => {
 			const state = this.journal.state(root);
-			if (state.members.some((member) => member.name === name)) throw new TeamError(`teammate name "${name}" was already used in this Team`, "TEAM_MEMBER_NAME_TAKEN");
+			const nameReuse = this.nameReuseEnabled();
+			if (state.members.some((member) => member.name === name && (member.phase !== "deleted" || !nameReuse))) throw new TeamError(`teammate name "${name}" was already used in this Team`, "TEAM_MEMBER_NAME_TAKEN");
 			if (state.members.filter((member) => member.phase !== "deleted").length >= this.maxMembers) throw new TeamError(`Team member limit ${this.maxMembers} reached`, "TEAM_MEMBER_LIMIT");
 			await this.journal.appendAndFlush(root, "team/member", {
 				version: 2,
@@ -1091,7 +1165,7 @@ var TeamRoster = class {
 			diagnostics: []
 		};
 	}
-	/** Validate a never-reused model-facing teammate name. */
+	/** Validate one model-facing teammate name (lower-kebab-case, bounded, not "lead"). */
 	memberName(value) {
 		if (!MEMBER_NAME.test(value) || value.length > 64 || value === "lead") throw new TeamError("teammate name must be lower-kebab-case, at most 64 characters, and not \"lead\"", "TEAM_INVALID_MEMBER_NAME");
 		return value;
@@ -1547,7 +1621,9 @@ const teamMemberSnapshotSchema = z$1.object({
 		"failed",
 		"deleted"
 	]),
-	error: z$1.string().optional()
+	error: z$1.string().optional(),
+	/** Present and true only when the deletion explicitly released the name for reuse. */
+	nameReleased: z$1.boolean().optional()
 }).strict();
 const teamTaskSnapshotSchema = z$1.object({
 	id: teamTaskIdSchema,
@@ -1687,8 +1763,9 @@ function applyCurrentTeamEvent(state, event) {
 			const member = event.data.member;
 			const index = state.members.findIndex((candidate) => candidate.id === member.id);
 			const prior = state.members[index];
-			const named = state.members.find((candidate) => candidate.name === member.name);
-			if (named !== void 0 && named.id !== member.id) throw new Error(`teammate name "${member.name}" is reused by another member`);
+			/* Names stay unique among live members; deleted generations may share a name after an opt-in reuse. */
+			const conflicting = state.members.find((candidate) => candidate.id !== member.id && candidate.name === member.name && candidate.phase !== "deleted");
+			if (conflicting !== void 0) throw new Error(`teammate name "${member.name}" is held by another live member`);
 			if (prior === void 0) {
 				if (member.phase !== "provisioning") throw new Error(`teammate "${member.name}" must begin provisioning`);
 			} else {
@@ -2090,10 +2167,13 @@ var TeamService = class extends Service {
 		maxTasks: z.number().step(1).min(1).default(DEFAULT_MAX_TASKS),
 		maxPendingMessagesPerMember: z.number().step(1).min(1).default(DEFAULT_MAX_PENDING_MESSAGES),
 		maxMessageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_MESSAGE_BYTES),
-		disposalTimeoutMs: z.number().step(1).min(1).default(DEFAULT_DISPOSAL_TIMEOUT_MS)
+		disposalTimeoutMs: z.number().step(1).min(1).default(DEFAULT_DISPOSAL_TIMEOUT_MS),
+		allowNameReuse: z.boolean().default(false)
 	});
 	/** Validated deployment limits used by every Team operation. */
 	config;
+	/** Operator override for name reuse persisted outside the plugin config; undefined means use `config.allowNameReuse`. */
+	nameReuseOverride = readNameReuseOverride();
 	activity;
 	lifecycle;
 	journal;
@@ -2107,14 +2187,15 @@ var TeamService = class extends Service {
 			maxTasks: positiveLimit("maxTasks", config.maxTasks ?? DEFAULT_MAX_TASKS),
 			maxPendingMessagesPerMember: positiveLimit("maxPendingMessagesPerMember", config.maxPendingMessagesPerMember ?? DEFAULT_MAX_PENDING_MESSAGES),
 			maxMessageBytes: positiveLimit("maxMessageBytes", config.maxMessageBytes ?? DEFAULT_MAX_MESSAGE_BYTES),
-			disposalTimeoutMs: positiveLimit("disposalTimeoutMs", config.disposalTimeoutMs ?? DEFAULT_DISPOSAL_TIMEOUT_MS)
+			disposalTimeoutMs: positiveLimit("disposalTimeoutMs", config.disposalTimeoutMs ?? DEFAULT_DISPOSAL_TIMEOUT_MS),
+			allowNameReuse: config.allowNameReuse === true
 		};
 		this.activity = new TeamActivity();
 		this.lifecycle = new TeamRuntimeLifecycle(this.config.disposalTimeoutMs);
 		this.journal = new TeamJournal(ctx, (root) => {
 			this.activity.notify(TeamId(root.id));
 		});
-		this.roster = new TeamRoster(ctx, this.journal, this.lifecycle, this.config.maxMembers);
+		this.roster = new TeamRoster(ctx, this.journal, this.lifecycle, this.config.maxMembers, () => this.nameReuseEnabled());
 		this.mailbox = new TeamMailbox(ctx, this.journal, this.roster, this.lifecycle, this.config.maxPendingMessagesPerMember, this.config.maxMessageBytes);
 		this.tasks = new TeamTaskBoard(this.journal, this.config.maxTasks);
 		ctx.on("session/event", (session, event) => {
@@ -2186,7 +2267,27 @@ var TeamService = class extends Service {
 					}
 				}
 			});
-			ctx.logger.info("agentTeamsClone: model swap routes live at /api/plugins/whaleforce/set-teammate-model and /api/plugins/whaleforce/model-catalog");
+			connCtx.connection.fetch.register({
+				path: "/api/plugins/whaleforce/name-reuse",
+				methods: ["GET", "POST"],
+				requestBody: "buffered",
+				fetch: async (request) => {
+					if (request.method === "GET") return Response.json(this.nameReuseControl());
+					let body;
+					try {
+						body = await request.json();
+					} catch {
+						return Response.json({ error: "invalid JSON body" }, { status: 400 });
+					}
+					if (typeof body?.allowNameReuse !== "boolean") return Response.json({ error: "allowNameReuse must be a boolean" }, { status: 400 });
+					try {
+						return Response.json(this.setNameReuse(body.allowNameReuse));
+					} catch (error) {
+						return Response.json({ error: errorMessage(error) }, { status: 400 });
+					}
+				}
+			});
+			ctx.logger.info("agentTeamsClone: model swap routes live at /api/plugins/whaleforce/set-teammate-model and /api/plugins/whaleforce/model-catalog, name reuse at /api/plugins/whaleforce/name-reuse");
 		});
 	}
 	/**
@@ -2204,6 +2305,39 @@ var TeamService = class extends Service {
 	*/
 	listMembers(agent) {
 		return this.roster.list(this.roster.membership(agent));
+	}
+	/**
+	* Effective operator switch for reusing a deleted teammate name: the persisted
+	* runtime override when present, else the deployment `allowNameReuse` config.
+	* @returns whether a deleted name may be reused by a new spawn.
+	*/
+	nameReuseEnabled() {
+		return this.nameReuseOverride ?? this.config.allowNameReuse;
+	}
+	/**
+	* Read the operator name-reuse control state for the Team panel.
+	* @returns effective switch, deployment default, and whether a runtime override is stored.
+	*/
+	nameReuseControl() {
+		return {
+			allowNameReuse: this.nameReuseEnabled(),
+			configured: this.config.allowNameReuse,
+			overridden: this.nameReuseOverride !== void 0
+		};
+	}
+	/**
+	* Persist and apply the operator name-reuse switch. Human-owned: only the
+	* browser-facing route calls this, never a model-facing tool.
+	* @param allowNameReuse - whether deleted names may be reused.
+	* @returns the applied control state.
+	*/
+	setNameReuse(allowNameReuse) {
+		if (typeof allowNameReuse !== "boolean") throw new TeamError("allowNameReuse must be a boolean", "TEAM_INVALID_ARGUMENT");
+		if (allowNameReuse !== this.nameReuseEnabled()) {
+			writeNameReuseOverride(allowNameReuse);
+			this.nameReuseOverride = allowNameReuse;
+		}
+		return this.nameReuseControl();
 	}
 	/**
 	* Create one named, continuable direct child of the Team Lead.
@@ -2284,9 +2418,9 @@ var TeamService = class extends Service {
 	* @param targetName - durable teammate name.
 	* @returns the removed name, its prior status, and the released task ids.
 	*/
-	async deleteTeammate(caller, targetName) {
+	async deleteTeammate(caller, targetName, options = {}) {
 		const membership = this.roster.membership(caller);
-		const removed = await this.roster.delete(caller, targetName);
+		const removed = await this.roster.delete(caller, targetName, options);
 		const releasedTasks = [];
 		for (const task of this.journal.state(membership.root).tasks) {
 			if (task.ownerId !== removed.memberId || task.status !== "in_progress") continue;
@@ -2302,7 +2436,12 @@ var TeamService = class extends Service {
 			}
 		}
 		this.activity.notify(membership.id);
-		return { target: targetName.trim(), previousStatus: removed.previousStatus, releasedTasks };
+		return {
+			target: targetName.trim(),
+			previousStatus: removed.previousStatus,
+			releasedTasks,
+			nameReleased: removed.nameReleased === true
+		};
 	}
 	/**
 	* Restore one deleted teammate by relinking its durable child Session.
