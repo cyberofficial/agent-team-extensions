@@ -1,16 +1,23 @@
-# Agent Teams WhaleForce profile layer. Apply after dsh-base so these replacements
-# keep direct delegation and coordination on the Team tools.
+# Agent Teams WhaleForce profile layer. Apply after dsh-base/dsh-web-app so these
+# replacements keep direct delegation and coordination on the Team tools.
+# Updated for DSH 0.2.2-rc.3 row ids (tool-subagent-list-agents is retired).
 
-- id: tool-subagent-control
+- id: agent-team
   disabled: true
 
-- id: tool-subagent-list-agents
+- id: tool-agent-team
+  disabled: true
+
+- id: tool-subagent-control
   disabled: true
 
 - id: tool-subagent
   disabled: true
 
 - id: tool-subagent-fork
+  disabled: true
+
+- id: ui-agent-team
   disabled: true
 
 - id: ui-subagent

@@ -216,7 +216,12 @@ export class TeamRoster {
      * @param childIds - selected roster child ids.
      */
     async stopTeammates(root, childIds) {
-        await this.lifecycle.withTimeout(this.ctx.subagents.drainContinuableChildren(root, childIds));
+        /* DSH 0.2.2-rc.3: per-child drain is gone; interrupt under ancestor authority. */
+        await this.lifecycle.withTimeout(Promise.all(childIds.map(async (childId) => {
+            if (this.ctx.agents.get(childId) === undefined)
+                return;
+            this.ctx.subagents.interrupt(childId, { kind: 'ancestor', agent: root });
+        })));
     }
     /** Perform one creation admitted before the Team runtime disposal cutoff. */
     async spawnAdmitted(caller, request) {
@@ -250,14 +255,15 @@ export class TeamRoster {
         });
         let started;
         try {
-            started = await this.ctx.subagents.startContinuable({
+            /* DSH 0.2.2-rc.3: flat SubagentActivationSpec with runtime-reserved name. */
+            started = await this.ctx.subagents.startActivation({
                 childId,
                 provider: request.provider,
                 label: description,
-                request: {
-                    prompt: request.prompt,
-                    parent: root,
-                },
+                name,
+                prompt: request.prompt,
+                parent: root,
+                delivery: 'parent',
                 signal,
             });
             await this.checkpointInitialPrompt(childId, started.messageId, signal);

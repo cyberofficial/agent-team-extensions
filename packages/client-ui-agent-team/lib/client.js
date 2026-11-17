@@ -94,7 +94,87 @@ window.__ModuleLoader__.load({
 		const WF_SET_MODEL_PATH = "/api/plugins/whaleforce/set-teammate-model";
 		const WF_WAIT_CONTROL_PATH = "/api/plugins/whaleforce/wait-control";
 		const WF_NAME_REUSE_PATH = "/api/plugins/whaleforce/name-reuse";
+		const WF_RECREATE_PATH = "/api/plugins/whaleforce/recreate-teammate";
+		const CTH_RECREATE_PATH = "/api/plugins/compact-to-here/recreate";
 		const WF_MODEL_CATALOG_PATH = "/api/plugins/whaleforce/model-catalog";
+		/** Shared name-reuse switch state so the panel toggle and per-row actions agree. */
+		const nameReuseStore = { value: undefined, listeners: new Set() };
+		function publishNameReuse(value) {
+			nameReuseStore.value = value;
+			for (const listener of nameReuseStore.listeners) listener();
+		}
+		function loadNameReuse() {
+			if (nameReuseStore.value !== undefined) return;
+			fetch(WF_NAME_REUSE_PATH).then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))).then((body) => {
+				publishNameReuse(body.allowNameReuse === true);
+			}).catch(() => {
+				publishNameReuse(undefined);
+			});
+		}
+		/** React hook over the shared name-reuse switch (undefined while loading/unavailable). */
+		function useNameReuse() {
+			const [value, setValue] = (0, react.useState)(nameReuseStore.value);
+			(0, react.useEffect)(() => {
+				loadNameReuse();
+				const listener = () => setValue(nameReuseStore.value);
+				nameReuseStore.listeners.add(listener);
+				return () => {
+					nameReuseStore.listeners.delete(listener);
+				};
+			}, []);
+			return value;
+		}
+		/** Resolve the cut seq for "keep the last N messages": scan the session's
+		    loaded event window backwards for message events and pick the Nth-from-last. */
+		function resolveBeforeSeq(sessions, memberId, keepLast) {
+			const entries = sessions.binding(memberId)?.eventSource.getSnapshot().entries ?? [];
+			const messageSeqs = [];
+			for (let index = entries.length - 1; index >= 0; index -= 1) {
+				const entry = entries[index];
+				if (entry?.type === "event" && (entry.event.type === "user/message" || entry.event.type === "assistant/message")) messageSeqs.push(entry.event.seq);
+			}
+			const pick = messageSeqs.length - keepLast;
+			if (pick < 0) throw new Error("not enough messages in the loaded window");
+			return messageSeqs[pick];
+		}
+		/* DSH 0.2.2-rc.3: @deepseek-ai/dsh-client-ui-primitives no longer exports
+		   useAnchoredPosition. The Team panel is position:fixed, so compute the
+		   viewport offset from the trigger rect, clamped to the viewport, and track
+		   resize/scroll while open. Returns a {left, top} style or null. */
+		function useAnchoredPosition({ open, anchorRef, panelRef, gap = 5, margin = 16 }) {
+			const [position, setPosition] = (0, react.useState)(null);
+			(0, react.useLayoutEffect)(() => {
+				if (!open) {
+					setPosition(null);
+					return;
+				}
+				const update = () => {
+					const anchor = anchorRef.current;
+					const panel = panelRef.current;
+					if (anchor === null || panel === null) {
+						setPosition(null);
+						return;
+					}
+					const rect = anchor.getBoundingClientRect();
+					const width = panel.offsetWidth;
+					const height = panel.offsetHeight;
+					let left = rect.left;
+					let top = rect.bottom + gap;
+					left = Math.min(Math.max(margin, left), Math.max(margin, window.innerWidth - width - margin));
+					if (top + height > window.innerHeight - margin && rect.top - gap - height >= margin) top = rect.top - gap - height;
+					top = Math.min(Math.max(margin, top), Math.max(margin, window.innerHeight - height - margin));
+					setPosition({ left, top });
+				};
+				update();
+				window.addEventListener("resize", update);
+				window.addEventListener("scroll", update, true);
+				return () => {
+					window.removeEventListener("resize", update);
+					window.removeEventListener("scroll", update, true);
+				};
+			}, [open, anchorRef, panelRef, gap, margin]);
+			return position;
+		}
 		/** Fetch the Host-generation model catalog served by the WhaleForce core routes. */
 		async function fetchModelCatalog() {
 			const response = await fetch(WF_MODEL_CATALOG_PATH);
@@ -148,17 +228,22 @@ window.__ModuleLoader__.load({
 				}, effort.id))]
 			});
 		}
-		function TeamMemberRow({ member, memberCount, sessionId, useSessions, useSessionStatus, openTeammate, onError, t }) {
+		function TeamMemberRow({ member, memberCount, sessionId, useSessions, useSessionStatus, openTeammate, onError, t, sessions, leadSessionId, nameReuse }) {
 			const model = useSessions((state) => state.projectionsBySession[member.id]?.values.modelSelection?.next?.model);
 			const running = useSessionStatus((state) => state.get(member.id)?.running);
 			const summaryRunning = useSessions((state) => state.byId[member.id]?.running);
 			const status = member.phase === "active" ? (running ?? summaryRunning) === true ? "running" : "inactive" : member.phase;
 			const isCurrent = member.id === sessionId;
+			const isLead = member.id === leadSessionId;
 			const highlightCurrent = isCurrent && memberCount > 1;
 			const inert = isCurrent || status === "failed" || status === "provisioning";
 			const swappable = status !== "failed" && status !== "provisioning";
 			const [catalog, setCatalog] = (0, react.useState)(null);
 			const [swapping, setSwapping] = (0, react.useState)(false);
+			const [recreateOpen, setRecreateOpen] = (0, react.useState)(false);
+			const [keepLast, setKeepLast] = (0, react.useState)(2);
+			const [recreating, setRecreating] = (0, react.useState)(false);
+			const [recreateResult, setRecreateResult] = (0, react.useState)(null);
 			const loadCatalog = () => {
 				if (catalog !== null || swapping) return;
 				setSwapping(true);
@@ -180,6 +265,36 @@ window.__ModuleLoader__.load({
 					setSwapping(false);
 				});
 			};
+			/* Compact & recreate: prepare the payload via the compact-to-here plugin,
+			   then delete+respawn under the same name through the whaleforce route. */
+			const runRecreate = () => {
+				if (recreating) return;
+				setRecreating(true);
+				setRecreateResult(null);
+				let beforeSeq;
+				try {
+					beforeSeq = resolveBeforeSeq(sessions, member.id, Math.max(1, keepLast | 0));
+				} catch (reason) {
+					setRecreating(false);
+					onError(String(reason));
+					return;
+				}
+				fetch(CTH_RECREATE_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: member.id, name: member.name, beforeSeq }) }).then(async (response) => {
+					const payload = await response.json();
+					if (!response.ok || payload?.ok !== true) throw new Error(payload?.error ?? `HTTP ${response.status}`);
+					return fetch(WF_RECREATE_PATH, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId: leadSessionId, target: member.name, prompt: payload.seedPrompt }) }).then(async (recResponse) => {
+						const rec = await recResponse.json();
+						if (!recResponse.ok || rec?.error !== undefined) throw new Error(rec?.error ?? `HTTP ${recResponse.status}`);
+						setRecreateResult({ backups: payload.backups, recreated: rec.recreated === true, rolledBack: rec.rolledBack === true, name: rec.name });
+						setRecreateOpen(false);
+					});
+				}).catch((reason) => {
+					onError(String(reason));
+				}).finally(() => {
+					setRecreating(false);
+				});
+			};
+			const recreateDisabledReason = isLead || inert ? null : nameReuse !== true ? t("recreateDisabledNameReuse") : status === "running" ? t("recreateDisabledBusy") : null;
 			return (0, react_jsx_runtime.jsxs)("div", {
 				style: { display: "flex", flexDirection: "column", gap: 2 },
 				children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
@@ -259,7 +374,60 @@ window.__ModuleLoader__.load({
 							}, option.value))
 						}, section.id))]
 					}), catalog === null ? null : renderEffortSelect(catalogModelReasoning(catalog, model), swapping, void 0, (effort) => swapModel(model, void 0, effort), t)]
-				})]
+				}), swappable && !isLead && (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+					(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+						label: recreateDisabledReason ?? t("recreate"),
+						side: "bottom",
+						gap: 4,
+						disabled: recreateDisabledReason === null,
+						children: (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							className: TeamAction_module_css_default.expandToggle,
+							"data-recreate-teammate": member.name,
+							disabled: recreateDisabledReason !== null || recreating,
+							title: recreateDisabledReason ?? t("recreate"),
+							onClick: () => {
+								setRecreateResult(null);
+								setRecreateOpen((current) => !current);
+							},
+							children: recreating ? t("recreateWorking") : t("recreate")
+						})
+					}),
+					recreateOpen && (0, react_jsx_runtime.jsxs)("span", {
+						style: { display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--dsw-alias-label-caption)" },
+						children: [
+							t("recreateKeepLast"),
+							(0, react_jsx_runtime.jsx)("input", {
+								type: "number",
+								min: 1,
+								max: 50,
+								value: keepLast,
+								disabled: recreating,
+								onChange: (event) => setKeepLast(Number.parseInt(event.target.value, 10) || 1),
+								style: { font: "inherit", fontSize: 11, width: 44, color: "inherit", background: "transparent", border: "1px solid var(--dsw-alias-border-l2)", borderRadius: 4 }
+							}),
+							(0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								className: TeamAction_module_css_default.expandToggle,
+								disabled: recreating,
+								onClick: runRecreate,
+								children: t("recreateRun")
+							}),
+							(0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								className: TeamAction_module_css_default.expandToggle,
+								disabled: recreating,
+								onClick: () => setRecreateOpen(false),
+								children: t("recreateCancel")
+							})
+						]
+					}),
+					recreateResult !== null && (0, react_jsx_runtime.jsx)("small", {
+						role: "status",
+						className: TeamAction_module_css_default.diagnostic,
+						children: `${t("recreateDone")} ${recreateResult.name}${recreateResult.rolledBack ? " (rolled back)" : ""}: ${recreateResult.backups.join(", ")}`
+					})
+				] })]
 			});
 		}
 		/** Composer-dock model chip for one teammate chat; a swap applies from that teammate's next turn. */
@@ -385,19 +553,8 @@ window.__ModuleLoader__.load({
 		* the row only renders it and flips it, and no model-facing tool can change it.
 		*/
 		function NameReuseRow({ t, onError }) {
-			const [enabled, setEnabled] = (0, react.useState)(void 0);
+			const enabled = useNameReuse();
 			const [busy, setBusy] = (0, react.useState)(false);
-			(0, react.useEffect)(() => {
-				let cancelled = false;
-				fetch(WF_NAME_REUSE_PATH).then((response) => response.ok ? response.json() : Promise.reject(new Error(`HTTP ${response.status}`))).then((body) => {
-					if (!cancelled) setEnabled(body.allowNameReuse === true);
-				}).catch(() => {
-					if (!cancelled) setEnabled(void 0);
-				});
-				return () => {
-					cancelled = true;
-				};
-			}, []);
 			const toggle = () => {
 				if (busy || enabled === void 0) return;
 				setBusy(true);
@@ -406,7 +563,7 @@ window.__ModuleLoader__.load({
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({ allowNameReuse: !enabled })
 				}).then((response) => response.ok ? response.json() : response.json().then((body) => Promise.reject(new Error(body?.error ?? `HTTP ${response.status}`)), () => Promise.reject(new Error(`HTTP ${response.status}`)))).then((body) => {
-					setEnabled(body.allowNameReuse === true);
+					publishNameReuse(body.allowNameReuse === true);
 				}).catch((failure) => {
 					onError(failure instanceof Error ? failure.message : String(failure));
 				}).finally(() => setBusy(false));
@@ -513,14 +670,15 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/** Render the Team roster and read-only task board. */
-		function TeamAction({ sessionId, useSession, useSessions, useSessionStatus, openTeammate, t }) {
+		function TeamAction({ sessionId, useSession, useSessions, useSessionStatus, openTeammate, t, sessions }) {
+			const nameReuseEnabled = useNameReuse();
 			const [open, setOpen] = (0, react.useState)(false);
 			const [error, setError] = (0, react.useState)(null);
 			const rootRef = (0, react.useRef)(null);
 			const triggerRef = (0, react.useRef)(null);
 			const triggerLabelRef = (0, react.useRef)(null);
 			const panelRef = (0, react.useRef)(null);
-			const position = (0, _deepseek_ai_dsh_client_ui_primitives.useAnchoredPosition)({
+			const position = useAnchoredPosition({
 				open,
 				anchorRef: triggerRef,
 				panelRef,
@@ -660,7 +818,10 @@ window.__ModuleLoader__.load({
 										useSessionStatus,
 										openTeammate,
 										onError: setError,
-										t
+										t,
+										sessions,
+										leadSessionId,
+										nameReuse: nameReuseEnabled
 									}, member.id))
 								})] }),
 								(0, react_jsx_runtime.jsx)("section", { children: team.tasks.length === 0 ? (0, react_jsx_runtime.jsx)("p", {
@@ -718,6 +879,14 @@ window.__ModuleLoader__.load({
 			"nameReuseWarning": "警告：复用名称后，旧会话无法再按名字恢复，只能留在磁盘上审计。",
 			"nameReuseOn": "已允许",
 			"nameReuseOff": "已烧毁",
+			"recreate": "压缩并重建",
+			"recreateKeepLast": "保留最后 N 条",
+			"recreateRun": "运行",
+			"recreateCancel": "取消",
+			"recreateWorking": "重建中…",
+			"recreateDone": "已重建",
+			"recreateDisabledNameReuse": "先启用“名称复用”开关",
+			"recreateDisabledBusy": "成员正在运行，无法重建",
 			open: "打开成员会话",
 			current: "当前会话",
 			owner: "Owner",
@@ -758,6 +927,14 @@ window.__ModuleLoader__.load({
 			"nameReuseWarning": "Warning: reusing a name orphans the old session from name-based restore; it stays on disk for audit only.",
 			"nameReuseOn": "Allowed",
 			"nameReuseOff": "Burned",
+			"recreate": "Compact & recreate",
+			"recreateKeepLast": "keep last N",
+			"recreateRun": "Run",
+			"recreateCancel": "Cancel",
+			"recreateWorking": "Recreating…",
+			"recreateDone": "Recreated",
+			"recreateDisabledNameReuse": "Enable the Name reuse switch first",
+			"recreateDisabledBusy": "Teammate is running; cannot recreate",
 			open: "Open member conversation",
 			current: "Current chat",
 			owner: "Owner",
@@ -813,7 +990,7 @@ window.__ModuleLoader__.load({
 					childSessionId,
 					mode: "continuable"
 				});
-			} };
+			}, sessions };
 			ctx.slots.inject("conversation.session.header.actions", () => ctx.slots.register({
 				name: "conversation.session.header.actions",
 				id: "agent-team-whaleforce",

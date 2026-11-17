@@ -7,7 +7,6 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { brandString } from "@deepseek-ai/dsh-brand";
-import { steerHostSubagentPrompt } from "@deepseek-ai/dsh-subagent/internal";
 import { foldSubagentDescriptor } from "@deepseek-ai/dsh-subagent";
 import { z as z$1 } from "zod";
 import { installModelSelection } from "@deepseek-ai/dsh-agent";
@@ -158,6 +157,7 @@ var TeamActivity = class {
 var TeamJournal = class {
 	ctx;
 	onCommit;
+	projectionHandle;
 	tails = /* @__PURE__ */ new Map();
 	/**
 	* @param ctx - Team service context with the injected Session service.
@@ -173,7 +173,13 @@ var TeamJournal = class {
 	* @returns current projected state selected by the Lead Team id.
 	*/
 	state(root) {
-		const projection = this.ctx.sessionProjections.stateOf(root.session, "agentTeam");
+		/* DSH 0.2.2-rc.3: registration is awaited and yields a ProjectionHandle;
+		   the registry-level stateOf(session, key) read is deprecated. Before the
+		   service init resolves, fall back to the registry read so constructor-time
+		   observers keep working. */
+		const projection = this.projectionHandle !== void 0
+			? this.projectionHandle.stateOf(root.session)
+			: this.ctx.sessionProjections.stateOf(root.session, "agentTeam");
 		if (projection === void 0) throw new Error("Agent Teams projection is not registered");
 		if (projection.failure !== void 0) throw new Error(projection.failure);
 		return projection;
@@ -386,7 +392,9 @@ function writeScope(value) {
 //#endregion
 //#region lib/types/roster.js
 /** Team membership, continuable-child provisioning, and roster-owned teardown. */
-const MEMBER_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+/* DSH 0.2.2-rc.3 reserves child names as 1–32 lower-case letters, digits, or
+   hyphens starting with a letter, other than "lead" (SubagentActivationSpec.name). */
+const MEMBER_NAME = /^[a-z][a-z0-9-]{0,31}$/u;
 /**
 * Resolve one active Team member by model-facing name, including the Lead pseudo-row.
 * @param root - exact live Team Lead.
@@ -762,14 +770,16 @@ var TeamRoster = class {
 		return view;
 	}
 	/**
-	* Append one durable model/selection event and install the mutable selection
-	* reference for one live teammate.
+	* Swap one live teammate's model from its next step. DSH 0.2.2-rc.3 owns this:
+	* `agent.model.select(...)` appends the durable `model/selection` event, the
+	* modelSelection projection folds it into `pending`, and the agent loop applies
+	* it at the next pre-step — a step already in flight keeps its current model.
 	* @param live - exact live teammate Agent.
 	* @param selection - validated selection produced by resolveCallConfig.
 	*/
 	installLiveSelection(live, selection) {
-		live.session.append("model/selection", selection);
-		this.installSelection(live).current = selection;
+		this.installSelection(live);
+		live.model.select(selection);
 	}
 	/**
 	* Resolve the provider route an inactive teammate's stored log last used, for
@@ -894,14 +904,12 @@ var TeamRoster = class {
 		return void 0;
 	}
 	/**
-	* Install the per-teammate model selection on a newly materialized teammate.
-	* Runs synchronously on agent/created and in the service startup sweep, before
-	* any recovery work or prompt assembly. A cold resume rebuilds the Agent from its
-	* spawn descriptor, so the installer must exist even when the swap has already
-	* been used by a request: without it, the next resume after an API limit, stall,
-	* or provider failure would silently revert to the spawn route. The installed
-	* `current` falls back to durable state (pending selection, then the last logged
-	* request route), so a resumed teammate stays on the model it was last using.
+	* Install the per-teammate model-switch notice hook on a newly materialized
+	* teammate. Runs on agent/created and in the service startup sweep. DSH
+	* 0.2.2-rc.3's installModelSelection(agentCtx) takes only the scoped context:
+	* the durable `modelSelection` projection plus AgentModel already resolve
+	* pending/lastUsed per step, so a cold-resumed teammate keeps its last model
+	* with no plugin-side fallback state.
 	* @param agent - newly started exact live Agent.
 	*/
 	applyColdSelection(agent) {
@@ -910,42 +918,16 @@ var TeamRoster = class {
 		this.installSelection(agent);
 	}
 	/**
-	* Create once and return the mutable selection reference installed on one live
-	* teammate. `current` falls back to durable state whenever no explicit swap is
-	* pinned: first the modelSelection projection's pending selection, then the route
-	* the last logged request used. Both are durable, so the fallback survives the
-	* Agent being disposed and cold-resumed.
-	* @param agent - live teammate Agent owning the selection.
-	* @returns the installed mutable selection reference.
+	* Install once per live teammate Agent and return the stored disposer.
+	* @param agent - live teammate Agent owning the model-selection hook.
+	* @returns the scoped disposer for the installed pre-step listener.
 	*/
 	installSelection(agent) {
 		let installed = this.modelSelections.get(agent);
 		if (installed !== void 0) return installed;
-		const projections = this.ctx.sessionProjections;
-		const selection = {
-			picked: void 0,
-			assembled: void 0,
-			get current() {
-				if (selection.picked !== void 0) return selection.picked;
-				/* The projection read is best-effort: a teammate must still start if the host registered no modelSelection projection. */
-				let projection;
-				try {
-					projection = projections.stateOf(agent.session, "modelSelection");
-				} catch {
-					projection = void 0;
-				}
-				const pending = projection?.pending;
-				if (pending !== null && pending !== void 0) return pending;
-				const header = agent.session.requestHeader();
-				return header === void 0 ? void 0 : routeOfRequestHeader(header);
-			},
-			set current(next) {
-				selection.picked = next;
-			}
-		};
-		installModelSelection(agent.ctx, selection);
-		this.modelSelections.set(agent, selection);
-		return selection;
+		const dispose = installModelSelection(agent.ctx);
+		this.modelSelections.set(agent, dispose);
+		return dispose;
 	}
 	/**
 	* Group exact live roster children by their current Lead for runtime teardown.
@@ -965,12 +947,20 @@ var TeamRoster = class {
 		return teams;
 	}
 	/**
-	* Release exact teammate Activations through the continuation lifecycle owner.
+	* Stop selected live teammate children under the Lead's ancestor authority.
+	* DSH 0.2.2-rc.3 removed per-child drain; `interrupt` cancels the current turn
+	* while the Activation, inbox, and durable child Session are preserved, which
+	* is exactly what durable delete/restore needs (the roster tombstone is the
+	* authoritative membership marker). Whole-tree teardown at service disposal
+	* uses `drainDescendants` instead (see disposeRuntime).
 	* @param root - exact live Team Lead authorizing release.
 	* @param childIds - selected roster child ids.
 	*/
 	async stopTeammates(root, childIds) {
-		await this.lifecycle.withTimeout(this.ctx.subagents.drainChildren(root, childIds));
+		await this.lifecycle.withTimeout(Promise.all(childIds.map(async (childId) => {
+			if (this.ctx.agents.get(childId) === void 0) return;
+			this.ctx.subagents.interrupt(childId, { kind: "ancestor", agent: root });
+		})));
 	}
 	/**
 	* Resolve and validate spawn-time per-child model routing, mirroring
@@ -1035,15 +1025,18 @@ var TeamRoster = class {
 		});
 		let started;
 		try {
+			/* DSH 0.2.2-rc.3: SubagentActivationSpec is flat — prompt/parent/agentOptions
+			   are top-level fields, the model-facing name is reserved by the runtime,
+			   and delivery selects parent settlement notification vs caller-only. */
 			started = await this.ctx.subagents.startActivation({
 				childId,
 				provider: request.provider,
 				label: description,
-				request: {
-					prompt: request.prompt,
-					parent: root,
-					...(modelOptions === void 0 ? {} : { agentOptions: modelOptions })
-				},
+				name,
+				prompt: request.prompt,
+				parent: root,
+				...(modelOptions === void 0 ? {} : { agentOptions: modelOptions }),
+				delivery: "parent",
 				signal
 			});
 			await this.checkpointInitialPrompt(childId, started.messageId, signal);
@@ -1167,7 +1160,7 @@ var TeamRoster = class {
 	}
 	/** Validate one model-facing teammate name (lower-kebab-case, bounded, not "lead"). */
 	memberName(value) {
-		if (!MEMBER_NAME.test(value) || value.length > 64 || value === "lead") throw new TeamError("teammate name must be lower-kebab-case, at most 64 characters, and not \"lead\"", "TEAM_INVALID_MEMBER_NAME");
+		if (!MEMBER_NAME.test(value) || value === "lead") throw new TeamError("teammate name must be 1-32 lower-case letters, digits, or hyphens starting with a letter, and not \"lead\"", "TEAM_INVALID_MEMBER_NAME");
 		return value;
 	}
 	/** Append one terminal provisioning edge unless recovery already settled it. */
@@ -1375,7 +1368,7 @@ var TeamMailbox = class {
 	async dispatchOnce(root, message, signal) {
 		try {
 			const target = message.targetId === root.id ? root : this.ctx.agents.get(message.targetId);
-			if (target !== void 0 && this.targetRecorded(target.session, message.id)) return await this.checkpointDelivered(root, target.session, message.id);
+			if (target !== void 0 && this.targetRecorded(target.session, message)) return await this.checkpointDelivered(root, target.session, message.id);
 			const source = {
 				kind: "team-message",
 				teamId: TeamId(root.id),
@@ -1393,14 +1386,23 @@ var TeamMailbox = class {
 				return await this.checkpointDelivered(root, root.session, message.id);
 			}
 			if (target === void 0) {
-				const recorded = await this.persistedTargetRecorded(message.targetId, message.id, signal);
+				const recorded = await this.persistedTargetRecorded(message.targetId, message, signal);
 				if (recorded === void 0) return false;
 				if (recorded) {
 					await this.markDelivered(root, message.id, message.targetId);
 					return true;
 				}
 			}
-			await steerHostSubagentPrompt(this.ctx.subagents, root, message.targetId, content, source, signal);
+			/* DSH 0.2.2-rc.3: steerHostSubagentPrompt is gone. ctx.subagents.sendMessage
+			   steers one model-authored message to another tree member (cold targets are
+			   resumed under the tree root) and resolves once the target inbox accepted it.
+			   The delivered user/message carries an `agent-message` source; the durable
+			   marker for dedup is the framed "Team message <id> from <name>:" text block,
+			   which deliveryContent prepends and sendMessage preserves after its own
+			   "Agent <name> sent a message:" prefix. Deliver under the sender when it is
+			   live so attribution is exact, else under the Lead (root) as before. */
+			const sender = this.ctx.agents.get(message.senderId) ?? root;
+			await this.ctx.subagents.sendMessage(sender, message.targetId, content, { signal });
 			return target === void 0 ? true : await this.checkpointDelivered(root, target.session, message.id);
 		} catch (error) {
 			this.ctx.logger.warn(`team message "${message.id}" remains queued: ${errorMessage(error)}`);
@@ -1431,7 +1433,20 @@ var TeamMailbox = class {
 	}
 	/** Whether a target Session already contains the durable message identity. */
 	targetRecorded(session, messageId) {
-		return messageAccepted(session.snapshotEvents(session.inheritedEventCount), (message) => message.source.kind === "team-message" && message.source.messageId === messageId);
+		return messageAccepted(session.snapshotEvents(session.inheritedEventCount), (message) => this.messageRecordedIn(message, messageId));
+	}
+	/**
+	* Match one delivered user message to its queued mailbox identity. Lead-self
+	* steers keep the `team-message` source carrying the id; peer deliveries through
+	* `ctx.subagents.sendMessage` (DSH 0.2.2-rc.3) get an `agent-message` source and
+	* are matched by the framed `Team message <id> from <name>:` text block that
+	* deliveryContent prepends (sendMessage keeps it after its own prefix).
+	*/
+	messageRecordedIn(message, messageId) {
+		if (message.source.kind === "team-message" && message.source.messageId === messageId) return true;
+		if (message.source.kind !== "agent-message") return false;
+		const marker = `Team message ${messageId} from `;
+		return Array.isArray(message.content) && message.content.some((block) => block?.type === "text" && typeof block.text === "string" && block.text.includes(marker));
 	}
 	/** Frame peer content with stable sender and message identity for the receiving model. */
 	deliveryContent(message) {
@@ -1441,10 +1456,10 @@ var TeamMailbox = class {
 		}, ...structuredClone(message.content)];
 	}
 	/** Read an inactive target's durable log before cold resume; uncertainty keeps the mailbox queued. */
-	async persistedTargetRecorded(targetId, messageId, signal) {
+	async persistedTargetRecorded(targetId, message, signal) {
 		try {
 			const stored = await readPersistedSession(this.ctx.sessionPersistence, targetId, signal);
-			return messageAccepted(stored.events.slice(stored.inheritedEventCount), (message) => message.source.kind === "team-message" && message.source.messageId === messageId);
+			return messageAccepted(stored.events.slice(stored.inheritedEventCount), (entry) => this.messageRecordedIn(entry, message.id));
 		} catch (error) {
 			this.ctx.logger.warn(`cannot read Team message target "${targetId}": ${errorMessage(error)}`);
 			return;
@@ -1677,8 +1692,9 @@ const teamMessageDeliveredEventSchema = z$1.object({
 * @param rootId - root Session identity.
 * @returns empty Team state.
 */
-function emptyTeamState(rootId) {
+function emptyTeamState(rootId, inheritedEventCount = 0) {
 	return {
+		inheritedEventCount,
 		id: TeamId(rootId),
 		members: [],
 		tasks: [],
@@ -1688,6 +1704,7 @@ function emptyTeamState(rootId) {
 	};
 }
 const teamProjectionEntrySchema = z$1.object({
+	inheritedEventCount: nonNegativeSafeInteger,
 	id: teamIdSchema,
 	members: z$1.array(teamMemberSnapshotSchema),
 	tasks: z$1.array(teamTaskSnapshotSchema),
@@ -1737,6 +1754,9 @@ function parseCurrentTeamEvent(event) {
 }
 function applyProjectionEvent(state, event) {
 	if (state.failure !== void 0) return state;
+	/* DSH 0.2.2-rc.3 passes inheritedEventCount to init; fork-inherited Team
+	   records stay outside the fork's own projected Team state. */
+	if (event.seq < state.inheritedEventCount) return state;
 	if (!isTeamEvent(event)) return state;
 	try {
 		const selector = parsePersisted(event.type, teamEventSelectorSchema, event.data);
@@ -1905,9 +1925,9 @@ function teamProjectionView(state) {
 /** Team projection selected by the projected Session identity; the wire view carries durable roster and task state only. */
 const teamProjectionDefinition = {
 	key: "agentTeam",
-	stateVersion: 5,
+	stateVersion: 6,
 	stateSchema: teamProjectionEntrySchema,
-	init: (header) => emptyTeamState(header.id),
+	init: (header, inheritedEventCount) => emptyTeamState(header.id, inheritedEventCount),
 	apply: applyProjectionEvent,
 	wire: {
 		viewSchema: teamProjectionSchema,
@@ -2172,6 +2192,8 @@ var TeamService = class extends Service {
 	});
 	/** Validated deployment limits used by every Team operation. */
 	config;
+	/** Awaited agentTeam projection handle installed in [Service.init]. */
+	projectionHandle;
 	/** Operator override for name reuse persisted outside the plugin config; undefined means use `config.allowNameReuse`. */
 	nameReuseOverride = readNameReuseOverride();
 	activity;
@@ -2213,15 +2235,21 @@ var TeamService = class extends Service {
 			if (membership !== void 0) this.activity.notify(membership.id);
 		});
 		ctx.effect(() => {
-			const disposeProjection = ctx.root.sessionProjections.register(teamProjectionDefinition);
-			return async () => {
-				try {
-					await this.disposeRuntime();
-				} finally {
-					disposeProjection();
-				}
+			return () => {
+				void this.disposeRuntime();
+				void this.projectionHandle?.dispose();
 			};
 		}, "agentTeamsClone.runtimeLifecycle()");
+	}
+	/**
+	* DSH 0.2.2-rc.3: projection registration is awaited and yields a
+	* ProjectionHandle (`handle.stateOf(session)`); the registration lives on this
+	* plugin's fiber and is released by `handle.dispose()` plus fiber teardown.
+	*/
+	async [Service.init]() {
+		const ctx = this.ctx;
+		this.projectionHandle = await ctx.sessionProjections.register(teamProjectionDefinition);
+		this.journal.projectionHandle = this.projectionHandle;
 		for (const agent of ctx.agents.list()) {
 			this.roster.applyColdSelection(agent);
 			this.scheduleRecovery(agent);
@@ -2264,6 +2292,35 @@ var TeamService = class extends Service {
 						return Response.json(await controller.modelCatalog());
 					} catch (error) {
 						return Response.json({ error: errorMessage(error) }, { status: 502 });
+					}
+				}
+			});
+			/* Browser-facing recreate: the Team panel prepares the payload via the
+			   compact-to-here plugin and posts { sessionId, target, prompt } here. */
+			connCtx.connection.fetch.register({
+				path: "/api/plugins/whaleforce/recreate-teammate",
+				methods: ["POST"],
+				requestBody: "buffered",
+				fetch: async (request) => {
+					let body;
+					try {
+						body = await request.json();
+					} catch {
+						return Response.json({ error: "invalid JSON body" }, { status: 400 });
+					}
+					const lead = this.ctx.agents.get(body.sessionId);
+					if (lead === void 0) return Response.json({ error: "lead session not live" }, { status: 404 });
+					if (typeof body?.target !== "string" || typeof body?.prompt !== "string") return Response.json({ error: "target and prompt are required" }, { status: 400 });
+					try {
+						const result = await this.recreateTeammate(lead, {
+							target: body.target,
+							prompt: body.prompt,
+							...body.description === void 0 ? {} : { description: body.description },
+							force: body.force === true
+						});
+						return Response.json(result);
+					} catch (error) {
+						return Response.json({ error: errorMessage(error) }, { status: 400 });
 					}
 				}
 			});
@@ -2453,6 +2510,89 @@ var TeamService = class extends Service {
 		return await this.roster.restore(caller, targetName);
 	}
 	/**
+	 * Recreate one teammate under the SAME name with a fresh child Session seeded
+	 * by `prompt` (the seed prompt prepared by the compact-to-here recreate
+	 * payload). Safe sequence in one operation: guard -> delete with
+	 * reuseName:true (releases the name, supersedes the old session from
+	 * name-based restore; the old session stays on disk for audit) -> spawn a
+	 * fresh member with the same name and the old provider. If the spawn fails
+	 * after the delete, the old member row is re-activated by id (best-effort
+	 * rollback) and the failure is reported with rolledBack=true.
+	 * @param caller - exact live Lead Agent.
+	 * @param request - { target, prompt, description?, force?, signal? }.
+	 * @returns { name, oldSessionId, newMemberId, recreated, rolledBack, error? }.
+	 */
+	async recreateTeammate(caller, request) {
+		const membership = this.roster.membership(caller);
+		if (membership.role !== "lead") throw new TeamError("only the Team Lead can recreate teammates", "TEAM_LEAD_REQUIRED");
+		const root = membership.root;
+		const name = request.target.trim();
+		if (name === "lead") throw new TeamError("the Team Lead cannot be recreated", "TEAM_INVALID_TARGET");
+		if (!this.nameReuseEnabled()) throw new TeamError("name reuse is disabled for this Team; enable it in the Team panel or set allowNameReuse in the plugin config", "TEAM_NAME_REUSE_DISABLED");
+		const state = this.journal.state(root);
+		const member = state.members.find((candidate) => candidate.name === name && candidate.phase !== "deleted");
+		if (member === void 0) throw new TeamError(`teammate "${name}" not found`, "TEAM_MEMBER_NOT_FOUND");
+		if (member.phase === "provisioning") throw new TeamError(`teammate "${name}" is still provisioning and cannot be recreated yet`, "TEAM_MEMBER_PROVISIONING");
+		const liveAgent = this.ctx.agents.get(member.id);
+		const previousStatus = member.phase === "failed" ? "failed" : availability(liveAgent);
+		if (previousStatus === "running" && request.force !== true) throw new TeamError(`teammate "${name}" has an open turn; pass force: true to recreate anyway`, "TEAM_MEMBER_BUSY");
+		const oldSessionId = member.id;
+		const description = typeof request.description === "string" && request.description.trim() !== "" ? request.description.trim() : member.description;
+		const prompt = requiredText(request.prompt, "prompt", 1_000_000);
+		/* 1) Delete with name release: stops the live child, tombstones the row
+		   with nameReleased, frees the name for the respawn below. */
+		await this.deleteTeammate(caller, name, { reuseName: true });
+		/* 2) Respawn the same name with a fresh child Session seeded by prompt. */
+		try {
+			const spawned = await this.spawnTeammate(caller, {
+				name,
+				description,
+				prompt: [{ type: "text", text: prompt }],
+				context: "fresh",
+				provider: member.provider,
+				signal: request.signal
+			});
+			this.activity.notify(membership.id);
+			return {
+				name,
+				oldSessionId,
+				newMemberId: spawned.member.id,
+				recreated: true,
+				rolledBack: false
+			};
+		} catch (error) {
+			/* 3) Best-effort rollback: re-activate the old row by id so the name
+			   resolves to the old (still-persisted) member again. */
+			let rolledBack = false;
+			try {
+				await this.journal.transact(root.id, async () => {
+					const current = this.journal.state(root).members.find((candidate) => candidate.id === oldSessionId);
+					if (current === void 0 || current.phase !== "deleted") return;
+					const reactivated = { ...current, phase: "active" };
+					delete reactivated.error;
+					delete reactivated.nameReleased;
+					await this.journal.appendAndFlush(root, "team/member", {
+						version: 2,
+						teamId: TeamId(root.id),
+						member: reactivated
+					});
+					rolledBack = true;
+				});
+			} catch {
+				rolledBack = false;
+			}
+			this.activity.notify(membership.id);
+			return {
+				name,
+				oldSessionId,
+				newMemberId: null,
+				recreated: false,
+				rolledBack,
+				error: `spawn after delete failed: ${errorMessage(error)}${rolledBack ? " (old member re-activated)" : " (rollback failed; old session remains on disk under id " + oldSessionId + ")"}`
+			};
+		}
+	}
+	/**
 	* List deleted teammates and whether their durable child Sessions remain.
 	* @param caller - exact live Lead Agent.
 	* @returns restorable rows in creation order.
@@ -2504,8 +2644,10 @@ var TeamService = class extends Service {
 		const failures = [];
 		await this.lifecycle.settle(this.roster.pendingCreations(), failures);
 		await this.lifecycle.settle(this.mailbox.pendingDispatches(), failures);
-		for (const [root, childIds] of this.roster.liveChildrenByRoot()) try {
-			await this.roster.stopTeammates(root, childIds);
+		/* DSH 0.2.2-rc.3: whole-tree teardown per live Lead root; drainDescendants
+		   closes admission and settles every resident Activation in the tree. */
+		for (const root of this.roster.liveChildrenByRoot().keys()) try {
+			await this.lifecycle.withTimeout(this.ctx.subagents.drainDescendants([root]));
 		} catch (error) {
 			failures.push(error);
 		}

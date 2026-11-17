@@ -99,8 +99,9 @@ const teamMessageDeliveredEventSchema = z.object({
  * @param rootId - root Session identity.
  * @returns empty Team state.
  */
-export function emptyTeamState(rootId) {
+export function emptyTeamState(rootId, inheritedEventCount = 0) {
     return {
+        inheritedEventCount,
         id: toTeamId(rootId),
         members: [],
         tasks: [],
@@ -110,6 +111,7 @@ export function emptyTeamState(rootId) {
     };
 }
 const teamProjectionEntrySchema = z.object({
+    inheritedEventCount: nonNegativeSafeInteger,
     id: teamIdSchema,
     members: z.array(teamMemberSnapshotSchema),
     tasks: z.array(teamTaskSnapshotSchema),
@@ -156,6 +158,8 @@ function parseCurrentTeamEvent(event) {
 }
 function applyProjectionEvent(state, event) {
     if (state.failure !== undefined)
+        return state;
+    if (event.seq < state.inheritedEventCount)
         return state;
     if (!isTeamEvent(event))
         return state;

@@ -37,10 +37,10 @@
     "dsh-agent-team-whaleforce-ui": "link:../client-ui-agent-team"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4"
+    "@deepseek-ai/cordis": "~4.1.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/cordis": "~4.1.0",
     "@deepseek-ai/cordis-plugin-include": "~1.0.9",
     "js-yaml": "^4.2.0"
   }

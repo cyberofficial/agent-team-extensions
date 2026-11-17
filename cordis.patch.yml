@@ -1,21 +1,32 @@
 # Agent Teams (WhaleForce) profile layer - manual enabler.
-# Cloned from @deepseek-ai/dsh-experimental-agent-team-profile v0.2.0-rc.2
-# (cordis.patch.yml). Apply after dsh-base so these replacements keep direct
-# delegation and coordination on the WhaleForce Team tools.
+# Updated for DSH 0.2.2-rc.3: plugin row ids now come from dsh-base / dsh-web-app
+# (agent-team, tool-agent-team, tool-subagent-control, tool-subagent,
+# tool-subagent-fork, ui-agent-team, ui-subagent). The retired
+# tool-subagent-list-agents row no longer exists in 0.2.2-rc.3 and is dropped.
 #
-# Enable EITHER the original Agent Teams bundle OR this WhaleForce bundle - not both -
-# otherwise two sets of team tools compete in one session.
+# Apply after dsh-base/dsh-web-app so these replacements keep direct delegation
+# and coordination on the WhaleForce Team tools.
+#
+# Enable EITHER the built-in Agent Teams rows OR this WhaleForce bundle - not
+# both - otherwise two agentTeams services / two team tool sets compete in one
+# session.
 
-- id: tool-subagent-control
+- id: agent-team
   disabled: true
 
-- id: tool-subagent-list-agents
+- id: tool-agent-team
+  disabled: true
+
+- id: tool-subagent-control
   disabled: true
 
 - id: tool-subagent
   disabled: true
 
 - id: tool-subagent-fork
+  disabled: true
+
+- id: ui-agent-team
   disabled: true
 
 - id: ui-subagent

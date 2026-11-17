@@ -37,6 +37,17 @@ Roster rows show durable names and phases. Provisioning and running members use 
 
 The Team Panel roster cards carry a per-member model control, and teammate-chat composers show a model chip. Both group the model list from GET `/api/plugins/whaleforce/model-catalog` by provider, one option group per provider, and always POST `/api/plugins/whaleforce/set-teammate-model` with `{target, model, provider}` so cross-provider model ids never collide. The route also accepts a swap for inactive teammates: the selection is stored durably and surfaces as pending once that teammate's session next loads.
 
+### Compact & recreate a teammate
+
+Each non-Lead roster row has a **Compact & recreate** action (hidden on the Lead row). It is disabled with a tooltip when the Name reuse switch is off ("Enable the Name reuse switch first") or the teammate is running ("Teammate is running; cannot recreate"). Clicking it expands a small picker: "keep last N" (default 2) plus Run/Cancel. Run performs the two-step flow:
+
+1. `POST /api/plugins/compact-to-here/recreate` with `{sessionId: <member session id>, name: <member name>, beforeSeq}` — the cut seq is resolved client-side from the member session's loaded event window (Nth-from-last `user/message`/`assistant/message` event) — returning `{backups, seedPrompt, summary, replacedRange}`.
+2. `POST /api/plugins/whaleforce/recreate-teammate` with `{sessionId: <lead session id>, target: <member name>, prompt: seedPrompt}` — the delete-with-`reuse_name` + respawn sequence (task-14).
+
+On success the row shows a status line with the recreated name and both backup file paths (full word-for-word history + summary, written to the session CWD by the compact-to-here plugin).
+
+Manual check: open the Team panel from the Lead chat with name reuse ON, pick a scratch teammate, set keep-last N, Run; expect the row status line with both backup paths and a fresh member row under the same name. With the switch OFF the button is disabled with the name-reuse tooltip; while the teammate runs, the busy tooltip.
+
 ### Inspect the task board
 
 Ready pending tasks use idle, blocked pending tasks use warning, in-progress tasks use ongoing, and completed tasks use done.

@@ -933,8 +933,9 @@ window.__ModuleLoader__.load({
 				|| session.running;
 			const shellPhase = active ? "active" : session.promptAttempted ? "engaging" : "blank";
 			const summaryBlank = useSessions((state) => state.byId[sessionId]?.blank);
-			const parentAvailabilityPending = session.subagent?.address.mode === "continuable"
-				&& session.subagent.parentAvailable === undefined;
+			/* DSH 0.2.2-rc.3: SessionSnapshot.subagent is { address } | null — no
+			   parentAvailable field; parent availability is not client-visible. */
+			const parentAvailabilityPending = false;
 			const settling = (shellPhase === "blank" && session.openState === "loading" && summaryBlank !== true)
 				|| parentAvailabilityPending;
 			const hero = shellPhase === "blank" && (session.openState === "open" || summaryBlank === true);

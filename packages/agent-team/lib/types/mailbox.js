@@ -2,7 +2,6 @@
 import { randomUUID } from 'node:crypto';
 import { brandString } from '@deepseek-ai/dsh-brand';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import { steerHostSubagentPrompt } from '@deepseek-ai/dsh-subagent/internal';
 import { errorMessage, TeamError } from "./error.js";
 import { readPersistedSession } from "./persisted.js";
 import { resolveActiveMember } from "./roster.js";
@@ -219,7 +218,7 @@ export class TeamMailbox {
                 return await this.checkpointDelivered(root, root.session, message.id);
             }
             if (target === undefined) {
-                const recorded = await this.persistedTargetRecorded(message.targetId, message.id, signal);
+                const recorded = await this.persistedTargetRecorded(message.targetId, message, signal);
                 if (recorded === undefined)
                     return false;
                 if (recorded) {
@@ -227,7 +226,11 @@ export class TeamMailbox {
                     return true;
                 }
             }
-            await steerHostSubagentPrompt(this.ctx.subagents, root, message.targetId, content, source, signal);
+            /* DSH 0.2.2-rc.3: sendMessage steers to another tree member and resolves at
+               inbox acceptance; the delivered user/message carries an `agent-message`
+               source and is deduped by the framed "Team message <id> from" text block. */
+            const sender = this.ctx.agents.get(message.senderId) ?? root;
+            await this.ctx.subagents.sendMessage(sender, message.targetId, content, { signal });
             return target === undefined
                 ? true
                 : await this.checkpointDelivered(root, target.session, message.id);

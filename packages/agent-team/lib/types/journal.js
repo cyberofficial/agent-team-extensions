@@ -3,6 +3,7 @@
 export class TeamJournal {
     ctx;
     onCommit;
+    projectionHandle;
     tails = new Map();
     /**
      * @param ctx - Team service context with the injected Session service.
@@ -18,7 +19,10 @@ export class TeamJournal {
      * @returns current projected state selected by the Lead Team id.
      */
     state(root) {
-        const projection = this.ctx.sessionProjections.stateOf(root.session, 'agentTeam');
+        /* DSH 0.2.2-rc.3: awaited registration yields a ProjectionHandle. */
+        const projection = this.projectionHandle !== undefined
+            ? this.projectionHandle.stateOf(root.session)
+            : this.ctx.sessionProjections.stateOf(root.session, 'agentTeam');
         if (projection === undefined)
             throw new Error('Agent Teams projection is not registered');
         if (projection.failure !== undefined)

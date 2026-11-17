@@ -37,6 +37,7 @@ export class TeamService extends Service {
     /** Validated deployment limits used by every Team operation. */
     config;
     activity;
+    projectionHandle;
     lifecycle;
     journal;
     roster;
@@ -65,17 +66,17 @@ export class TeamService extends Service {
                 this.activity.notify(membership.id);
         });
         ctx.effect(() => {
-            const disposeProjection = ctx.root.sessionProjections.register(teamProjectionDefinition);
-            return async () => {
-                try {
-                    await this.disposeRuntime();
-                }
-                finally {
-                    disposeProjection();
-                }
+            return () => {
+                void this.disposeRuntime();
+                void this.projectionHandle?.dispose();
             };
         }, 'agentTeamsClone.runtimeLifecycle()');
-        for (const agent of ctx.agents.list())
+    }
+    /** DSH 0.2.2-rc.3: awaited projection registration yields a ProjectionHandle. */
+    async [Service.init]() {
+        this.projectionHandle = await this.ctx.sessionProjections.register(teamProjectionDefinition);
+        this.journal.projectionHandle = this.projectionHandle;
+        for (const agent of this.ctx.agents.list())
             this.scheduleRecovery(agent);
     }
     /**
